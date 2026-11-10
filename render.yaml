@@ -1,5 +1,6 @@
 services:
-  - type: static
+  - type: web
+    runtime: static
     name: produce-site
     rootDir: site
     buildCommand: npm ci && npm run build -- --base=/
