@@ -14,24 +14,24 @@ class GitHubStoreError(Exception):
     pass
 
 
-def is_configured() -> bool:
-    return bool(os.environ.get("GITHUB_TOKEN"))
+def is_configured(token: str | None = None) -> bool:
+    return bool(token or os.environ.get("GITHUB_TOKEN"))
 
 
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:40] or "untitled"
 
 
-def _headers() -> dict:
+def _headers(token: str | None = None) -> dict:
     return {
-        "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+        "Authorization": f"Bearer {token or os.environ['GITHUB_TOKEN']}",
         "Accept": "application/vnd.github+json",
     }
 
 
-def _existing_sha(path: str) -> str | None:
+def _existing_sha(path: str, api: str = API, token: str | None = None) -> str | None:
     """Return the blob sha if the file already exists (needed to overwrite it)."""
-    resp = requests.get(f"{API}/{path}", headers=_headers(), params={"ref": BRANCH}, timeout=20)
+    resp = requests.get(f"{api}/{path}", headers=_headers(token), params={"ref": BRANCH}, timeout=20)
     if resp.status_code == 404:
         return None
     if resp.status_code != 200:
@@ -39,17 +39,18 @@ def _existing_sha(path: str) -> str | None:
     return resp.json()["sha"]
 
 
-def _put_file(path: str, content: str, message: str, overwrite: bool = False) -> str:
+def _put_file(path: str, content: str, message: str, overwrite: bool = False, api: str = API,
+              token: str | None = None) -> str:
     payload = {
         "message": message,
         "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
         "branch": BRANCH,
     }
     if overwrite:
-        sha = _existing_sha(path)
+        sha = _existing_sha(path, api, token)
         if sha:
             payload["sha"] = sha
-    resp = requests.put(f"{API}/{path}", headers=_headers(), json=payload, timeout=20)
+    resp = requests.put(f"{api}/{path}", headers=_headers(token), json=payload, timeout=20)
     if resp.status_code not in (200, 201):
         raise GitHubStoreError(f"GitHub returned {resp.status_code}: {resp.json().get('message', '')}")
     return resp.json()["content"]["html_url"]
@@ -123,21 +124,31 @@ def store_generation(prompt: str, code: dict) -> str:
     return f"https://github.com/{REPO}/tree/{BRANCH}/{folder}"
 
 
-def store_site(prompt: str, files: list[dict]) -> dict:
+_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
+def store_site(prompt: str, files: list[dict], repo: str | None = None,
+               token: str | None = None) -> dict:
     """Commit a static site under sites/<timestamp>-<slug>/.
 
+    `repo` ("owner/name") overrides the GITHUB_REPO default.
     Returns the GitHub folder URL and the GitHub Pages URL (live once Pages is enabled).
     """
+    repo_full = repo or REPO
+    if not _REPO_RE.match(repo_full):
+        raise GitHubStoreError(f"Invalid repository '{repo_full}', expected owner/repo")
+    api = f"https://api.github.com/repos/{repo_full}/contents"
+
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     folder = f"sites/{stamp}-{_slug(prompt)}"
     message = f"Add generated site: {prompt[:60]}"
 
-    _put_file(f"{folder}/PROMPT.md", f"# Prompt\n\n{prompt}\n", message)
+    _put_file(f"{folder}/PROMPT.md", f"# Prompt\n\n{prompt}\n", message, api=api, token=token)
     for f in files:
-        _put_file(f"{folder}/{f['path']}", f["content"], message)
+        _put_file(f"{folder}/{f['path']}", f["content"], message, api=api, token=token)
 
-    owner, repo = REPO.split("/", 1)
+    owner, name = repo_full.split("/", 1)
     return {
-        "github_url": f"https://github.com/{REPO}/tree/{BRANCH}/{folder}",
-        "pages_url": f"https://{owner.lower()}.github.io/{repo}/{folder}/",
+        "github_url": f"https://github.com/{repo_full}/tree/{BRANCH}/{folder}",
+        "pages_url": f"https://{owner.lower()}.github.io/{name}/{folder}/",
     }

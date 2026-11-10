@@ -22,9 +22,9 @@ def _read_prompt():
     return prompt, None
 
 
-def _store(result: dict, store):
+def _store(result: dict, store, token: str | None = None):
     """Run a GitHub store step; never lose the generated output if it fails."""
-    if not github_store.is_configured():
+    if not github_store.is_configured(token):
         return
     try:
         extra = store()
@@ -77,7 +77,10 @@ def generate_site_route():
         files = generate_site(prompt)
         index = next(f["content"] for f in files if f["path"] == "index.html")
         result = {"files": [f["path"] for f in files], "preview": index}
-        _store(result, lambda: github_store.store_site(prompt, files))
+        body = request.get_json(silent=True) or {}
+        repo = (body.get("repo") or "").strip() or None
+        token = (body.get("token") or "").strip() or None
+        _store(result, lambda: github_store.store_site(prompt, files, repo, token), token)
         return result
 
     return _handle(run)
