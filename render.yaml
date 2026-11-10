@@ -5,7 +5,7 @@ services:
     name: generate-site-api
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 600 --workers 2 --threads 4
     healthCheckPath: /api/hello
     envVars:
       - key: PYTHON_VERSION
@@ -19,17 +19,18 @@ services:
       - key: GITHUB_BRANCH
         value: main
 
-  # React UI; proxies /api/* to the Flask service above
+  # React UI; calls the Flask service above via VITE_API_URL
   - type: web
     runtime: static
     name: generate-site-ui
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
+    envVars:
+      # Call the API directly: long generations would time out behind a static-site rewrite
+      - key: VITE_API_URL
+        value: https://generate-site-api.onrender.com
     routes:
-      - type: rewrite
-        source: /api/*
-        destination: https://generate-site-api.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html

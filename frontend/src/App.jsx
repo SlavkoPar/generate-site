@@ -36,12 +36,20 @@ function App() {
     setError('')
     setResult(null)
     try {
-      const res = await fetch('/api/generate-site', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/generate-site`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, repo: repo.trim(), token: token.trim() }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error(
+          `Server returned a non-JSON response (${res.status}). The API may be down, starting up, or timed out.`,
+        )
+      }
       if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
       setResult(data)
     } catch (err) {
