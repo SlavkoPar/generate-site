@@ -117,14 +117,6 @@ function App() {
           <a href={result.pages_url} target="_blank" rel="noreferrer">{result.pages_url}</a>
         </p>
       )}
-      {result?.preview && (
-        <iframe
-          className="site-preview"
-          title="Generated page preview"
-          sandbox="allow-scripts"
-          srcDoc={result.preview}
-        />
-      )}
     </section>
   )
 }

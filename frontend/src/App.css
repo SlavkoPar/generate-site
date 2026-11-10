@@ -192,7 +192,6 @@ textarea { font: inherit; padding: 8px; }
 @media (max-width: 800px) { .code-panes { grid-template-columns: 1fr; } }
 
 .mode-switch { display: flex; gap: 8px; }
-.site-preview { width: 100%; max-width: 1200px; height: 600px; border: 1px solid rgba(127,127,127,.4); border-radius: 6px; background: #fff; }
 
 .field { display:flex; flex-direction:column; gap:4px; text-align:left; font-size:.85rem; }
 .field input { padding:8px; font:inherit; }
