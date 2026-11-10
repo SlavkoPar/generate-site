@@ -121,3 +121,23 @@ def store_generation(prompt: str, code: dict) -> str:
         overwrite=True,
     )
     return f"https://github.com/{REPO}/tree/{BRANCH}/{folder}"
+
+
+def store_site(prompt: str, files: list[dict]) -> dict:
+    """Commit a static site under sites/<timestamp>-<slug>/.
+
+    Returns the GitHub folder URL and the GitHub Pages URL (live once Pages is enabled).
+    """
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    folder = f"sites/{stamp}-{_slug(prompt)}"
+    message = f"Add generated site: {prompt[:60]}"
+
+    _put_file(f"{folder}/PROMPT.md", f"# Prompt\n\n{prompt}\n", message)
+    for f in files:
+        _put_file(f"{folder}/{f['path']}", f["content"], message)
+
+    owner, repo = REPO.split("/", 1)
+    return {
+        "github_url": f"https://github.com/{REPO}/tree/{BRANCH}/{folder}",
+        "pages_url": f"https://{owner.lower()}.github.io/{repo}/{folder}/",
+    }

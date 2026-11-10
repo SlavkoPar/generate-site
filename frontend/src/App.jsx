@@ -16,6 +16,7 @@ function CodePane({ title, code }) {
 }
 
 function App() {
+  const [mode, setMode] = useState('code') // 'code' | 'site'
   const [prompt, setPrompt] = useState('')
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
@@ -27,7 +28,7 @@ function App() {
     setError('')
     setResult(null)
     try {
-      const res = await fetch('/api/generate', {
+      const res = await fetch(mode === 'site' ? '/api/generate-site' : '/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
@@ -44,13 +45,25 @@ function App() {
 
   return (
     <section id="center">
-      <h1>Generate Code</h1>
+      <h1>{mode === 'site' ? 'Generate Static Page' : 'Generate Code'}</h1>
+      <div className="mode-switch">
+        <button type="button" disabled={mode === 'code'} onClick={() => { setMode('code'); setResult(null); setError('') }}>
+          Code
+        </button>
+        <button type="button" disabled={mode === 'site'} onClick={() => { setMode('site'); setResult(null); setError('') }}>
+          Static page
+        </button>
+      </div>
       <form onSubmit={handleSubmit}>
         <textarea
           rows={4}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Describe what the code should do, e.g. 'read a CSV file and print the sum of the price column'"
+          placeholder={
+            mode === 'site'
+              ? "Describe the page, e.g. 'a landing page for a coffee shop with a menu and opening hours'"
+              : "Describe what the code should do, e.g. 'read a CSV file and print the sum of the price column'"
+          }
         />
         <button type="submit" disabled={loading || !prompt.trim()}>
           {loading ? 'Generating…' : 'Generate'}
@@ -63,7 +76,21 @@ function App() {
         </p>
       )}
       {result?.github_error && <p className="error">Not saved to GitHub: {result.github_error}</p>}
-      {result && (
+      {result?.pages_url && (
+        <p>
+          Live on GitHub Pages (may take a minute or two to appear):{' '}
+          <a href={result.pages_url} target="_blank" rel="noreferrer">{result.pages_url}</a>
+        </p>
+      )}
+      {result?.preview && (
+        <iframe
+          className="site-preview"
+          title="Generated page preview"
+          sandbox="allow-scripts"
+          srcDoc={result.preview}
+        />
+      )}
+      {result?.python && (
         <div className="code-panes">
           <CodePane title="Python" code={result.python} />
           <CodePane title="JavaScript" code={result.javascript} />

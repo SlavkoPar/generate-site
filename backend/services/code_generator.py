@@ -1,8 +1,4 @@
-import json
-
-import anthropic
-
-MODEL = "claude-opus-5-5"
+from .claude import GenerationRefused, MissingCredentials, ask_json  # noqa: F401  (re-exported)
 
 SYSTEM_PROMPT = (
     "You are a code generator. Given a task description, write a complete, "
@@ -30,52 +26,12 @@ OUTPUT_SCHEMA = {
     "additionalProperties": False,
 }
 
-# Reads ANTHROPIC_API_KEY (or an `ant auth login` profile) from the environment.
-_client = anthropic.Anthropic()
-
-
-class MissingCredentials(Exception):
-    """No Anthropic API credentials are configured on the server."""
-
-
-class GenerationRefused(Exception):
-    """The model declined to produce code for this request."""
-
 
 def generate_code(prompt: str) -> dict:
-    """Return {"python", "javascript", "python_requirements"} strings for the given task description."""
-    try:
-        response = _create(prompt)
-    except TypeError as e:
-        # The SDK raises TypeError (not AuthenticationError) when no credentials are configured.
-        if "authentication method" in str(e):
-            raise MissingCredentials("Server has no ANTHROPIC_API_KEY configured") from e
-        raise
-
-    if response.stop_reason == "refusal":
-        raise GenerationRefused("The model declined this request.")
-    if response.stop_reason == "max_tokens":
-        raise RuntimeError("Generated code was cut off; try a narrower request.")
-
-    text = next(b.text for b in response.content if b.type == "text")
-    data = json.loads(text)
+    """Return {"python", "javascript", "python_requirements"} strings for the task."""
+    data = ask_json(SYSTEM_PROMPT, prompt, OUTPUT_SCHEMA)
     return {
         "python": data["python"],
         "javascript": data["javascript"],
         "python_requirements": data["python_requirements"],
     }
-
-
-def _create(prompt: str):
-    return _client.beta.messages.create(
-        model=MODEL,
-        max_tokens=16000,
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",  # re-run on a fallback model if safety classifiers decline
-        system=SYSTEM_PROMPT,
-        output_config={
-            "effort": "medium",
-            "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA},
-        },
-        messages=[{"role": "user", "content": prompt}],
-    )
