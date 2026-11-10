@@ -61,7 +61,7 @@ function App() {
 
   return (
     <section id="center">
-      <h1>Generate Static Page</h1>
+      <h1>Generate Site and publish it to github</h1>
       <form onSubmit={handleSubmit}>
         <label className="field">
           GITHUB_REPO

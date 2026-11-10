@@ -3,7 +3,11 @@
 - Include page for each fruit and vegetable
 - Enable expand/collapse of groups
 - Enable gh-pages
+- Create icon for this site, something like 'Generate code'
 - Store user request to client local memory and enable loading of it
 - Add text field GITHUB_REPO and GITHUB_TOKEN to request form, initially set to `SlavkoPar/AIGeneratedSite`
 - Remove Code tab
 - Prepare this site for deploy to `Render.com`, as the blue print, rather than for generated site
+- Do not show preview of generated site, it will be presented over the github
+- create icon for this site, something like 'Generate Site'
+- Change `Generate Static Page` to `Generate Site and publish it to github`, also add icon to generated site, something like `Generated Site`
