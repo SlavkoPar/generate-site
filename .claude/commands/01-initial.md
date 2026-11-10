@@ -1,0 +1,9 @@
+- Generate `Vite` site with  `vite.config.ts`.
+- Create typescript pages and publish to GitHub, use gh-pages
+- Include page for each fruit and vegetable
+- Enable expand/collapse of groups
+- Enable gh-pages
+- Store user request to client local memory and enable loading of it
+- Add text field GITHUB_REPO and GITHUB_TOKEN to request form, initially set to `SlavkoPar/AIGeneratedSite`
+- Remove Code tab
+- Prepare this site for deploy to Render.com. as the blue print

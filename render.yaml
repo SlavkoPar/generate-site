@@ -1,0 +1,10 @@
+services:
+  - type: static
+    name: produce-site
+    rootDir: site
+    buildCommand: npm ci && npm run build -- --base=/
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
