@@ -6,4 +6,4 @@
 - Store user request to client local memory and enable loading of it
 - Add text field GITHUB_REPO and GITHUB_TOKEN to request form, initially set to `SlavkoPar/AIGeneratedSite`
 - Remove Code tab
-- Prepare this site for deploy to Render.com. as the blue print
+- Prepare this site for deploy to `Render.com`, as the blue print, rather than for generated site

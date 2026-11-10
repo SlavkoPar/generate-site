@@ -1,11 +1,35 @@
 services:
+  # Flask API (generates sites with Claude and commits them to GitHub)
+  - type: web
+    runtime: python
+    name: generate-site-api
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    healthCheckPath: /api/hello
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO
+        value: SlavkoPar/AIGeneratedSite
+      - key: GITHUB_BRANCH
+        value: main
+
+  # React UI; proxies /api/* to the Flask service above
   - type: web
     runtime: static
-    name: produce-site
-    rootDir: site
-    buildCommand: npm ci && npm run build -- --base=/
+    name: generate-site-ui
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://generate-site-api.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
