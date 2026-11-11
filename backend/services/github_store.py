@@ -187,9 +187,11 @@ def store_site(prompt: str, files: list[dict], repo: str | None = None,
         "folder": folder,
     }
     try:
-        _publish_gh_pages(files, message, repo_full, token)
+        warning = _publish_gh_pages(files, message, repo_full, token)
         # The gh-pages branch always holds the latest site at the Pages root.
         result["pages_url"] = f"https://{owner.lower()}.github.io/{name}/"
+        if warning:
+            result["pages_error"] = warning
     except (GitHubStoreError, requests.RequestException) as e:
         result["pages_error"] = f"Saved to {folder}, but gh-pages was not updated: {e}"
     return result
@@ -211,7 +213,7 @@ def _check(resp: requests.Response, what: str) -> dict:
     return resp.json()
 
 
-def _publish_gh_pages(files: list[dict], message: str, repo_full: str, token: str | None) -> None:
+def _publish_gh_pages(files: list[dict], message: str, repo_full: str, token: str | None) -> str | None:
     """Replace the whole gh-pages branch with `files` in one commit (creating the branch if needed)."""
     entries = [{"path": f["path"], "mode": "100644", "type": "blob", "content": f["content"]} for f in files]
     # .nojekyll makes Pages serve the files as-is instead of running Jekyll over them.
@@ -236,9 +238,26 @@ def _publish_gh_pages(files: list[dict], message: str, repo_full: str, token: st
     else:
         _check(_gh("POST", repo_full, "git/refs", token,
                    json={"ref": f"refs/heads/{PAGES_BRANCH}", "sha": commit["sha"]}), "creating gh-pages")
-        # First time only: turn Pages on for the new branch. Best effort; never changes an existing setup.
-        _gh("POST", repo_full, "pages", token,
-            json={"source": {"branch": PAGES_BRANCH, "path": "/"}})
+    return _ensure_pages_source(repo_full, token)
+
+
+def _ensure_pages_source(repo_full: str, token: str | None) -> str | None:
+    """Make GitHub Pages serve the gh-pages branch root. Returns a warning if it could not."""
+    source = {"source": {"branch": PAGES_BRANCH, "path": "/"}}
+    current = _gh("GET", repo_full, "pages", token)
+    if current.status_code == 200:
+        src = current.json().get("source") or {}
+        if src.get("branch") == PAGES_BRANCH and src.get("path", "/") == "/":
+            return None
+        resp = _gh("PUT", repo_full, "pages", token, json=source)  # switch an existing site
+        action = f"switch Pages from '{src.get('branch')}' to '{PAGES_BRANCH}'"
+    else:
+        resp = _gh("POST", repo_full, "pages", token, json=source)  # Pages not enabled yet
+        action = f"enable Pages on '{PAGES_BRANCH}'"
+    if resp.status_code in (200, 201, 204):
+        return None
+    return (f"Site pushed to {PAGES_BRANCH}, but could not {action} (GitHub returned "
+            f"{resp.status_code}). Set it in the repo: Settings > Pages > Source: {PAGES_BRANCH} / root")
 
 
 def _prompt_log(prompt: str, api: str, folder: str, token: str | None) -> str:
