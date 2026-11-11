@@ -4,6 +4,7 @@ import json
 import anthropic
 
 MODEL = "claude-opus-5-5"
+MAX_OUTPUT_TOKENS = 64000
 
 # Reads ANTHROPIC_API_KEY (or an `ant auth login` profile) from the environment.
 _client = anthropic.Anthropic()
@@ -63,9 +64,11 @@ def ask_json(system: str, prompt: str, schema: dict, history: list[dict] | None 
     caller owns the conversation and resends it.
     """
     try:
-        response = _client.beta.messages.create(
+        # Streaming is required for a large max_tokens (a whole site, rewritten on every
+        # refinement, can run to tens of thousands of tokens); we still wait for the full message.
+        with _client.beta.messages.stream(
             model=MODEL,
-            max_tokens=16000,
+            max_tokens=MAX_OUTPUT_TOKENS,
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",  # re-run on a fallback model if safety classifiers decline
             system=system,
@@ -74,7 +77,8 @@ def ask_json(system: str, prompt: str, schema: dict, history: list[dict] | None 
                 "format": {"type": "json_schema", "schema": schema},
             },
             messages=[*(history or []), {"role": "user", "content": prompt}],
-        )
+        ) as stream:
+            response = stream.get_final_message()
     except TypeError as e:
         # The SDK raises TypeError (not AuthenticationError) when no credentials are configured.
         if "authentication method" in str(e):
@@ -85,7 +89,7 @@ def ask_json(system: str, prompt: str, schema: dict, history: list[dict] | None 
     if response.stop_reason == "refusal":
         raise GenerationRefused("The model declined this request.")
     if response.stop_reason == "max_tokens":
-        raise RuntimeError("Output was cut off; try a narrower request.")
+        raise RuntimeError("Output was cut off even at the maximum length; try a narrower request.")
 
     text = next(b.text for b in response.content if b.type == "text")
     return json.loads(text)
