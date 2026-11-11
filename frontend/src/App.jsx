@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
@@ -24,6 +24,22 @@ function App() {
   const [folder, setFolder] = useState('') // GitHub folder of that site, overwritten on refinement
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const settingsRef = useRef(null)
+
+  useEffect(() => {
+    if (!settingsOpen) return undefined
+    const onClick = (e) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) setSettingsOpen(false)
+    }
+    const onKey = (e) => e.key === 'Escape' && setSettingsOpen(false)
+    document.addEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [settingsOpen])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -65,29 +81,51 @@ function App() {
 
   return (
     <section id="center">
-      <h1>Generate Site and publish it to github</h1>
+      <div className="title-row">
+        <h1>Generate Site and push it to github {repo.trim()}</h1>
+        <div className="settings" ref={settingsRef}>
+          <button
+            type="button"
+            className="settings-btn"
+            aria-label="Settings"
+            aria-haspopup="true"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((open) => !open)}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+            </svg>
+          </button>
+          {settingsOpen && (
+            <div className="settings-menu" role="dialog" aria-label="Settings">
+              <label className="field">
+                GITHUB_REPO
+                <input
+                  type="text"
+                  value={repo}
+                  onChange={(e) => setRepo(e.target.value)}
+                  placeholder="owner/repo"
+                />
+              </label>
+              {repo.trim() !== DEFAULT_REPO && (
+                <label className="field">
+                  GITHUB_TOKEN
+                  <input
+                    type="password"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="optional: defaults to the server's token"
+                    autoComplete="off"
+                  />
+                </label>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
       <form onSubmit={handleSubmit}>
-        <label className="field">
-          GITHUB_REPO
-          <input
-            type="text"
-            value={repo}
-            onChange={(e) => setRepo(e.target.value)}
-            placeholder="owner/repo"
-          />
-        </label>
-        {repo.trim() !== DEFAULT_REPO && (
-          <label className="field">
-            GITHUB_TOKEN
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="optional: defaults to the server's token"
-              autoComplete="off"
-            />
-          </label>
-        )}
         {history.length > 0 && (
           <select
             value=""
