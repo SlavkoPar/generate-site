@@ -47,6 +47,10 @@ def _read_prompt():
 def _store(result: dict, store, token: str | None = None):
     """Run a GitHub store step; never lose the generated output if it fails."""
     if not github_store.is_configured(token):
+        result["github_error"] = (
+            "No GitHub token: set GITHUB_TOKEN on the server (Render: generate-site-api > "
+            "Environment), or enter a token for a different repo"
+        )
         return
     try:
         extra = store()

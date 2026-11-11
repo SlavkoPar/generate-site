@@ -181,11 +181,64 @@ def store_site(prompt: str, files: list[dict], repo: str | None = None,
         _delete_stale(folder, {"PROMPT.md", *(f["path"] for f in files)}, message, api, repo_full, token)
 
     owner, name = repo_full.split("/", 1)
-    return {
+    result = {
         "github_url": f"https://github.com/{repo_full}/tree/{BRANCH}/{folder}",
         "pages_url": f"https://{owner.lower()}.github.io/{name}/{folder}/",
         "folder": folder,
     }
+    try:
+        _publish_gh_pages(files, message, repo_full, token)
+        # The gh-pages branch always holds the latest site at the Pages root.
+        result["pages_url"] = f"https://{owner.lower()}.github.io/{name}/"
+    except (GitHubStoreError, requests.RequestException) as e:
+        result["pages_error"] = f"Saved to {folder}, but gh-pages was not updated: {e}"
+    return result
+
+
+PAGES_BRANCH = "gh-pages"
+
+
+def _gh(method: str, repo_full: str, path: str, token: str | None, **kwargs) -> requests.Response:
+    return requests.request(
+        method, f"https://api.github.com/repos/{repo_full}/{path}",
+        headers=_headers(token), timeout=30, **kwargs,
+    )
+
+
+def _check(resp: requests.Response, what: str) -> dict:
+    if resp.status_code not in (200, 201):
+        raise GitHubStoreError(f"{what}: GitHub returned {resp.status_code}: {resp.json().get('message', '')}")
+    return resp.json()
+
+
+def _publish_gh_pages(files: list[dict], message: str, repo_full: str, token: str | None) -> None:
+    """Replace the whole gh-pages branch with `files` in one commit (creating the branch if needed)."""
+    entries = [{"path": f["path"], "mode": "100644", "type": "blob", "content": f["content"]} for f in files]
+    # .nojekyll makes Pages serve the files as-is instead of running Jekyll over them.
+    entries.append({"path": ".nojekyll", "mode": "100644", "type": "blob", "content": chr(10)})
+
+    ref = _gh("GET", repo_full, f"git/ref/heads/{PAGES_BRANCH}", token)
+    if ref.status_code not in (200, 404):
+        _check(ref, "reading gh-pages")
+    parent = ref.json()["object"]["sha"] if ref.status_code == 200 else None
+
+    # No base_tree: the new tree is exactly the latest site, so files from older sites vanish.
+    tree = _check(_gh("POST", repo_full, "git/trees", token, json={"tree": entries}), "creating tree")
+    commit = _check(
+        _gh("POST", repo_full, "git/commits", token, json={
+            "message": message, "tree": tree["sha"], "parents": [parent] if parent else [],
+        }),
+        "creating commit",
+    )
+    if parent:
+        _check(_gh("PATCH", repo_full, f"git/refs/heads/{PAGES_BRANCH}", token,
+                   json={"sha": commit["sha"]}), "updating gh-pages")
+    else:
+        _check(_gh("POST", repo_full, "git/refs", token,
+                   json={"ref": f"refs/heads/{PAGES_BRANCH}", "sha": commit["sha"]}), "creating gh-pages")
+        # First time only: turn Pages on for the new branch. Best effort; never changes an existing setup.
+        _gh("POST", repo_full, "pages", token,
+            json={"source": {"branch": PAGES_BRANCH, "path": "/"}})
 
 
 def _prompt_log(prompt: str, api: str, folder: str, token: str | None) -> str:

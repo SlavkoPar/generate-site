@@ -128,6 +128,7 @@ function App() {
           {result.usage.cost_usd.toFixed(4)} USD ({result.usage.model})
         </p>
       )}
+      {result?.pages_error && <p className="error">{result.pages_error}</p>}
       {result?.github_error && <p className="error">Not saved to GitHub: {result.github_error}</p>}
       {result?.pages_url && (
         <p>
