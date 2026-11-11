@@ -3,7 +3,7 @@ import json
 
 import anthropic
 
-MODEL = "claude-opus-5-5"
+MODEL = "claude-fable-5-2"
 MAX_OUTPUT_TOKENS = 64000
 
 # Reads ANTHROPIC_API_KEY (or an `ant auth login` profile) from the environment.
@@ -12,6 +12,7 @@ _client = anthropic.Anthropic()
 
 # USD per million tokens: (input, output, cache read). Cache writes (5 min) are 1.25x input.
 PRICES = {
+    "claude-fable-5-2": (8.00, 40.00, 0.20),
     "claude-opus-5-5": (4.00, 20.00, 0.20),
     "claude-opus-5": (5.00, 25.00, 0.50),
     "claude-sonnet-5-5": (2.00, 10.00, 0.20),
