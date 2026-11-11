@@ -6,15 +6,17 @@ const PROMPT_KEY = 'generate-site:prompt-history'
 const MAX_HISTORY = 20
 const DEFAULT_REPO = 'SlavkoPar/AIGeneratedSite'
 
+// The built-in requests are only the starting list; once the user sends one, their own
+// requests are kept (newest first) and the built-ins age out like any other entry.
 function loadHistory() {
-  let saved = []
   try {
     const list = JSON.parse(localStorage.getItem(PROMPT_KEY) ?? '[]')
-    if (Array.isArray(list)) saved = list.filter((p) => typeof p === 'string')
+    const saved = Array.isArray(list) ? list.filter((p) => typeof p === 'string') : []
+    if (saved.length) return saved
   } catch {
-    // unreadable storage: fall back to the built-in requests only
+    // unreadable storage: start from the built-in requests
   }
-  return [...saved, ...DEFAULT_PROMPTS.filter((p) => !saved.includes(p))]
+  return DEFAULT_PROMPTS
 }
 
 function App() {
