@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
+import { DEFAULT_PROMPTS } from './defaultPrompts'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
 const MAX_HISTORY = 20
 const DEFAULT_REPO = 'SlavkoPar/AIGeneratedSite'
 
 function loadHistory() {
+  let saved = []
   try {
     const list = JSON.parse(localStorage.getItem(PROMPT_KEY) ?? '[]')
-    return Array.isArray(list) ? list.filter((p) => typeof p === 'string') : []
+    if (Array.isArray(list)) saved = list.filter((p) => typeof p === 'string')
   } catch {
-    return []
+    // unreadable storage: fall back to the built-in requests only
   }
+  return [...saved, ...DEFAULT_PROMPTS.filter((p) => !saved.includes(p))]
 }
 
 function App() {
