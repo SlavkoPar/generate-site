@@ -126,6 +126,19 @@ function App() {
                   />
                 </label>
               )}
+              {repo.trim() !== DEFAULT_REPO && (
+                <div className="settings-help">
+                  <p>
+                    Get a GitHub token that can write to your repo:{' '}
+                    <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
+                      https://github.com/settings/personal-access-tokens
+                    </a>
+                  </p>
+                  <p>Fine-grained token: select that repo and set Contents to Read and write.</p>
+                  <p>Classic token: the repo scope is enough.</p>
+                  <p>Enter that token when generating a site.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
