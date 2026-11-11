@@ -3,13 +3,35 @@ import requests
 from flask import jsonify, request
 
 from services import github_store
-from services.claude import GenerationRefused, MissingCredentials
+from services.claude import GenerationRefused, MissingCredentials, get_usage, reset_usage
 from services.code_generator import generate_code
-from services.site_generator import InvalidSite, generate_site
+from services.site_generator import InvalidSite, extend_history, generate_site
 
 from . import api_bp
 
 MAX_PROMPT_CHARS = 4000
+MAX_HISTORY_CHARS = 1_500_000
+
+
+def _read_history(body: dict):
+    """Validate the conversation the client sent back; returns (messages, error response)."""
+    raw = body.get("history")
+    if raw in (None, []):
+        return [], None
+    ok = (
+        isinstance(raw, list)
+        and len(raw) % 2 == 0
+        and all(
+            isinstance(m, dict)
+            and m.get("role") == ("user" if i % 2 == 0 else "assistant")
+            and isinstance(m.get("content"), str)
+            for i, m in enumerate(raw)
+        )
+        and sum(len(m["content"]) for m in raw) <= MAX_HISTORY_CHARS
+    )
+    if not ok:
+        return None, (jsonify(error="'history' is invalid or too large"), 400)
+    return [{"role": m["role"], "content": m["content"]} for m in raw], None
 
 
 def _read_prompt():
@@ -33,9 +55,17 @@ def _store(result: dict, store, token: str | None = None):
         result["github_error"] = str(e)
 
 
+def _with_usage(result: dict) -> dict:
+    usage = get_usage()
+    if usage:
+        result["usage"] = usage
+    return result
+
+
 def _handle(fn):
+    reset_usage()
     try:
-        return jsonify(fn())
+        return jsonify(_with_usage(fn()))
     except GenerationRefused as e:
         return jsonify(error=str(e)), 422
     except MissingCredentials as e:
@@ -73,14 +103,21 @@ def generate_site_route():
     if err:
         return err
 
+    body = request.get_json(silent=True) or {}
+    history, err = _read_history(body)
+    if err:
+        return err
+
     def run():
-        files = generate_site(prompt)
-        index = next(f["content"] for f in files if f["path"] == "index.html")
-        result = {"files": [f["path"] for f in files], "preview": index}
-        body = request.get_json(silent=True) or {}
+        files = generate_site(prompt, history)
+        result = {
+            "files": [f["path"] for f in files],
+            "history": extend_history(history, prompt, files),
+        }
         repo = (body.get("repo") or "").strip() or None
         token = (body.get("token") or "").strip() or None
-        _store(result, lambda: github_store.store_site(prompt, files, repo, token), token)
+        folder = (body.get("folder") or "").strip() or None
+        _store(result, lambda: github_store.store_site(prompt, files, repo, token, folder), token)
         return result
 
     return _handle(run)

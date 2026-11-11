@@ -1,3 +1,4 @@
+import json
 import posixpath
 import re
 
@@ -10,7 +11,9 @@ SYSTEM_PROMPT = (
     "with inline <style> and <script>; add extra files only when clearly needed, and "
     "reference them with relative paths (no leading slash). Make it responsive, "
     "accessible and polished. Do not load external scripts or tracking. "
-    "Return every file with its relative path and full content, with no markdown fences."
+    "Return every file with its relative path and full content, with no markdown fences. "
+    "If the conversation already contains a site, apply the user's new request to it, keep "
+    "everything they did not ask to change, and return the complete updated set of files."
 )
 
 OUTPUT_SCHEMA = {
@@ -35,6 +38,7 @@ OUTPUT_SCHEMA = {
 
 ALLOWED_EXTENSIONS = {".html", ".css", ".js", ".json", ".svg", ".txt", ".md"}
 MAX_FILES = 20
+MAX_HISTORY_MESSAGES = 6  # last 3 request/response turns
 MAX_FILE_BYTES = 500_000
 
 
@@ -90,9 +94,9 @@ def _clean_path(path: str) -> str:
     return norm
 
 
-def generate_site(prompt: str) -> list[dict]:
+def generate_site(prompt: str, history: list[dict] | None = None) -> list[dict]:
     """Return a validated list of {"path", "content"} files; always includes index.html."""
-    data = ask_json(SYSTEM_PROMPT, prompt, OUTPUT_SCHEMA)
+    data = ask_json(SYSTEM_PROMPT, prompt, OUTPUT_SCHEMA, history)
     files: dict[str, str] = {}
     for f in data["files"][:MAX_FILES]:
         path = _clean_path(f["path"])
@@ -103,3 +107,13 @@ def generate_site(prompt: str) -> list[dict]:
         raise InvalidSite("Generated site has no index.html")
     _add_favicon(files)
     return [{"path": p, "content": c} for p, c in files.items()]
+
+
+def extend_history(history: list[dict] | None, prompt: str, files: list[dict]) -> list[dict]:
+    """History for the next request: previous turns plus this prompt and the site it produced."""
+    kept = [f for f in files if f["path"] != FAVICON_PATH]  # re-added on every generation
+    turn = [
+        {"role": "user", "content": prompt},
+        {"role": "assistant", "content": json.dumps({"files": kept})},
+    ]
+    return [*(history or []), *turn][-MAX_HISTORY_MESSAGES:]

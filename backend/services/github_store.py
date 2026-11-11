@@ -127,28 +127,72 @@ def store_generation(prompt: str, code: dict) -> str:
 _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
+SITE_FOLDER_RE = re.compile(r"^sites/\d{8}-\d{6}-[a-z0-9-]{0,40}$")
+
+
+def _delete_stale(folder: str, keep: set[str], message: str, api: str, repo_full: str,
+                  token: str | None) -> None:
+    """Remove files under `folder` that are not in `keep` (paths relative to the folder)."""
+    resp = requests.get(
+        f"https://api.github.com/repos/{repo_full}/git/trees/{BRANCH}",
+        headers=_headers(token), params={"recursive": "1"}, timeout=20,
+    )
+    if resp.status_code != 200:
+        return  # best effort: leftover files are harmless compared to losing the update
+    prefix = f"{folder}/"
+    for item in resp.json().get("tree", []):
+        path = item["path"]
+        if item["type"] == "blob" and path.startswith(prefix) and path[len(prefix):] not in keep:
+            requests.delete(
+                f"{api}/{path}", headers=_headers(token), timeout=20,
+                json={"message": message, "sha": item["sha"], "branch": BRANCH},
+            )
+
+
 def store_site(prompt: str, files: list[dict], repo: str | None = None,
-               token: str | None = None) -> dict:
+               token: str | None = None, folder: str | None = None) -> dict:
     """Commit a static site under sites/<timestamp>-<slug>/.
 
-    `repo` ("owner/name") overrides the GITHUB_REPO default.
+    `repo` ("owner/name") overrides the GITHUB_REPO default. Pass the `folder` returned by
+    an earlier call to overwrite that site (a refinement) instead of creating a new one.
     Returns the GitHub folder URL and the GitHub Pages URL (live once Pages is enabled).
     """
     repo_full = repo or REPO
     if not _REPO_RE.match(repo_full):
         raise GitHubStoreError(f"Invalid repository '{repo_full}', expected owner/repo")
+    if folder is not None and not SITE_FOLDER_RE.match(folder):
+        raise GitHubStoreError(f"Invalid site folder '{folder}'")
     api = f"https://api.github.com/repos/{repo_full}/contents"
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    folder = f"sites/{stamp}-{_slug(prompt)}"
-    message = f"Add generated site: {prompt[:60]}"
+    refine = folder is not None
+    if not refine:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        folder = f"sites/{stamp}-{_slug(prompt)}"
+    message = f"{'Update' if refine else 'Add'} generated site: {prompt[:60]}"
 
-    _put_file(f"{folder}/PROMPT.md", f"# Prompt\n\n{prompt}\n", message, api=api, token=token)
+    if refine:
+        _put_file(f"{folder}/PROMPT.md", _prompt_log(prompt, api, folder, token), message,
+                  overwrite=True, api=api, token=token)
+    else:
+        _put_file(f"{folder}/PROMPT.md", "# Prompt\n\n" + prompt + "\n", message, api=api, token=token)
     for f in files:
-        _put_file(f"{folder}/{f['path']}", f["content"], message, api=api, token=token)
+        _put_file(f"{folder}/{f['path']}", f["content"], message, overwrite=refine, api=api, token=token)
+    if refine:
+        _delete_stale(folder, {"PROMPT.md", *(f["path"] for f in files)}, message, api, repo_full, token)
 
     owner, name = repo_full.split("/", 1)
     return {
         "github_url": f"https://github.com/{repo_full}/tree/{BRANCH}/{folder}",
         "pages_url": f"https://{owner.lower()}.github.io/{name}/{folder}/",
+        "folder": folder,
     }
+
+
+def _prompt_log(prompt: str, api: str, folder: str, token: str | None) -> str:
+    """Existing PROMPT.md plus this refinement, so the folder keeps its full prompt history."""
+    resp = requests.get(f"{api}/{folder}/PROMPT.md", headers=_headers(token),
+                        params={"ref": BRANCH}, timeout=20)
+    previous = ""
+    if resp.status_code == 200:
+        previous = base64.b64decode(resp.json()["content"]).decode("utf-8").rstrip() + "\n\n"
+    return previous + "# Refinement\n\n" + prompt + "\n"

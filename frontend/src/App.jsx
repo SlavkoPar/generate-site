@@ -20,6 +20,8 @@ function App() {
   const [history, setHistory] = useState(loadHistory)
   const [prompt, setPrompt] = useState(() => loadHistory()[0] ?? '')
   const [result, setResult] = useState(null)
+  const [conversation, setConversation] = useState([]) // sent back so Claude can refine the last site
+  const [folder, setFolder] = useState('') // GitHub folder of that site, overwritten on refinement
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -39,7 +41,7 @@ function App() {
       const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/generate-site`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, repo: repo.trim(), token: token.trim() }),
+        body: JSON.stringify({ prompt, repo: repo.trim(), token: token.trim(), history: conversation, folder }),
       })
       const text = await res.text()
       let data
@@ -52,6 +54,8 @@ function App() {
       }
       if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
       setResult(data)
+      setConversation(data.history ?? [])
+      setFolder(data.folder ?? '')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -98,7 +102,11 @@ function App() {
           rows={4}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Describe the page, e.g. 'a landing page for a coffee shop with a menu and opening hours'"
+          placeholder={
+            conversation.length
+              ? "Describe the change, e.g. 'make the header dark and add a contact form'"
+              : "Describe the page, e.g. 'a landing page for a coffee shop with a menu and opening hours'"
+          }
         />
         <button type="submit" disabled={loading || !prompt.trim()}>
           {loading ? 'Generating…' : 'Generate'}
@@ -108,6 +116,14 @@ function App() {
       {result?.github_url && (
         <p>
           Saved to GitHub: <a href={result.github_url} target="_blank" rel="noreferrer">{result.github_url}</a>
+        </p>
+      )}
+      {result?.usage && (
+        <p className="usage">
+          Claude usage: {result.usage.input_tokens.toLocaleString()} input +{' '}
+          {result.usage.output_tokens.toLocaleString()} output ={' '}
+          {result.usage.total_tokens.toLocaleString()} tokens, about $
+          {result.usage.cost_usd.toFixed(4)} USD ({result.usage.model})
         </p>
       )}
       {result?.github_error && <p className="error">Not saved to GitHub: {result.github_error}</p>}
