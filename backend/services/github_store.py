@@ -130,74 +130,49 @@ _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SITE_FOLDER_RE = re.compile(r"^sites/\d{8}-\d{6}-[a-z0-9-]{0,40}$")
 
 
-def _delete_stale(folder: str, keep: set[str], message: str, api: str, repo_full: str,
-                  token: str | None) -> None:
-    """Remove files under `folder` that are not in `keep` (paths relative to the folder)."""
-    resp = requests.get(
-        f"https://api.github.com/repos/{repo_full}/git/trees/{BRANCH}",
-        headers=_headers(token), params={"recursive": "1"}, timeout=20,
-    )
-    if resp.status_code != 200:
-        return  # best effort: leftover files are harmless compared to losing the update
-    prefix = f"{folder}/"
-    for item in resp.json().get("tree", []):
-        path = item["path"]
-        if item["type"] == "blob" and path.startswith(prefix) and path[len(prefix):] not in keep:
-            requests.delete(
-                f"{api}/{path}", headers=_headers(token), timeout=20,
-                json={"message": message, "sha": item["sha"], "branch": BRANCH},
-            )
+WORKFLOW_PATH = ".github/workflows/deploy-generated-site.yml"
+LATEST_PATH = "sites/LATEST"  # first line: folder of the site the workflow builds
 
-
-def store_site(prompt: str, files: list[dict], repo: str | None = None,
-               token: str | None = None, folder: str | None = None) -> dict:
-    """Commit a static site under sites/<timestamp>-<slug>/.
-
-    `repo` ("owner/name") overrides the GITHUB_REPO default. Pass the `folder` returned by
-    an earlier call to overwrite that site (a refinement) instead of creating a new one.
-    Returns the GitHub folder URL and the GitHub Pages URL (live once Pages is enabled).
-    """
-    repo_full = repo or REPO
-    if not _REPO_RE.match(repo_full):
-        raise GitHubStoreError(f"Invalid repository '{repo_full}', expected owner/repo")
-    if folder is not None and not SITE_FOLDER_RE.match(folder):
-        raise GitHubStoreError(f"Invalid site folder '{folder}'")
-    api = f"https://api.github.com/repos/{repo_full}/contents"
-
-    refine = folder is not None
-    if not refine:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        folder = f"sites/{stamp}-{_slug(prompt)}"
-    message = f"{'Update' if refine else 'Add'} generated site: {prompt[:60]}"
-
-    if refine:
-        _put_file(f"{folder}/PROMPT.md", _prompt_log(prompt, api, folder, token), message,
-                  overwrite=True, api=api, token=token)
-    else:
-        _put_file(f"{folder}/PROMPT.md", "# Prompt\n\n" + prompt + "\n", message, api=api, token=token)
-    for f in files:
-        _put_file(f"{folder}/{f['path']}", f["content"], message, overwrite=refine, api=api, token=token)
-    if refine:
-        _delete_stale(folder, {"PROMPT.md", *(f["path"] for f in files)}, message, api, repo_full, token)
-
-    owner, name = repo_full.split("/", 1)
-    result = {
-        "github_url": f"https://github.com/{repo_full}/tree/{BRANCH}/{folder}",
-        "pages_url": f"https://{owner.lower()}.github.io/{name}/{folder}/",
-        "folder": folder,
-    }
-    try:
-        warning = _publish_gh_pages(files, message, repo_full, token)
-        # The gh-pages branch always holds the latest site at the Pages root.
-        result["pages_url"] = f"https://{owner.lower()}.github.io/{name}/"
-        if warning:
-            result["pages_error"] = warning
-    except (GitHubStoreError, requests.RequestException) as e:
-        result["pages_error"] = f"Saved to {folder}, but gh-pages was not updated: {e}"
-    return result
-
-
-PAGES_BRANCH = "gh-pages"
+# Builds the Vite project named in sites/LATEST and deploys its dist/ to GitHub Pages.
+# Only a change to that pointer triggers it, so each generation builds exactly once.
+_WORKFLOW = """name: Deploy generated site
+on:
+  push:
+    branches: [__BRANCH__]
+    paths: [sites/LATEST]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: site
+        run: echo "folder=$(head -n 1 sites/LATEST)" >> "$GITHUB_OUTPUT"
+      - name: Build
+        working-directory: ${{ steps.site.outputs.folder }}
+        run: |
+          npm install
+          npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.site.outputs.folder }}/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
+""".replace("__BRANCH__", BRANCH)
 
 
 def _gh(method: str, repo_full: str, path: str, token: str | None, **kwargs) -> requests.Response:
@@ -213,58 +188,120 @@ def _check(resp: requests.Response, what: str) -> dict:
     return resp.json()
 
 
-def _publish_gh_pages(files: list[dict], message: str, repo_full: str, token: str | None) -> str | None:
-    """Replace the whole gh-pages branch with `files` in one commit (creating the branch if needed)."""
-    entries = [{"path": f["path"], "mode": "100644", "type": "blob", "content": f["content"]} for f in files]
-    # .nojekyll makes Pages serve the files as-is instead of running Jekyll over them.
-    entries.append({"path": ".nojekyll", "mode": "100644", "type": "blob", "content": chr(10)})
+def _file_text(repo_full: str, path: str, token: str | None) -> str | None:
+    resp = _gh("GET", repo_full, f"contents/{path}", token, params={"ref": BRANCH})
+    if resp.status_code != 200:
+        return None
+    return base64.b64decode(resp.json()["content"]).decode("utf-8")
 
-    ref = _gh("GET", repo_full, f"git/ref/heads/{PAGES_BRANCH}", token)
-    if ref.status_code not in (200, 404):
-        _check(ref, "reading gh-pages")
-    parent = ref.json()["object"]["sha"] if ref.status_code == 200 else None
 
-    # No base_tree: the new tree is exactly the latest site, so files from older sites vanish.
-    tree = _check(_gh("POST", repo_full, "git/trees", token, json={"tree": entries}), "creating tree")
-    commit = _check(
-        _gh("POST", repo_full, "git/commits", token, json={
-            "message": message, "tree": tree["sha"], "parents": [parent] if parent else [],
-        }),
-        "creating commit",
-    )
-    if parent:
-        _check(_gh("PATCH", repo_full, f"git/refs/heads/{PAGES_BRANCH}", token,
-                   json={"sha": commit["sha"]}), "updating gh-pages")
+def _commit(repo_full: str, token: str | None, message: str, files: dict[str, str],
+            replace_folder: str | None = None) -> None:
+    """Add `files` (repo path -> content) to the branch in a single commit.
+
+    With `replace_folder`, files already under that folder that are not in `files` are deleted.
+    """
+    ref = _gh("GET", repo_full, f"git/ref/heads/{BRANCH}", token)
+    if ref.status_code in (404, 409):
+        raise GitHubStoreError(
+            f"Repository {repo_full} has no '{BRANCH}' branch (or the token cannot see it). "
+            "Create the repo with a README first")
+    parent = _check(ref, f"reading {BRANCH}")["object"]["sha"]
+    base_tree = _check(_gh("GET", repo_full, f"git/commits/{parent}", token), "reading commit")["tree"]["sha"]
+
+    entries = [{"path": p, "mode": "100644", "type": "blob", "content": c} for p, c in files.items()]
+    if replace_folder:
+        listing = _gh("GET", repo_full, f"git/trees/{base_tree}", token, params={"recursive": "1"})
+        if listing.status_code == 200:  # best effort: leftovers are harmless compared to losing the update
+            prefix = f"{replace_folder}/"
+            entries += [
+                {"path": item["path"], "mode": "100644", "type": "blob", "sha": None}
+                for item in listing.json().get("tree", [])
+                if item["type"] == "blob" and item["path"].startswith(prefix) and item["path"] not in files
+            ]
+
+    tree = _check(_gh("POST", repo_full, "git/trees", token,
+                      json={"base_tree": base_tree, "tree": entries}), "creating tree")
+    commit = _check(_gh("POST", repo_full, "git/commits", token,
+                        json={"message": message, "tree": tree["sha"], "parents": [parent]}),
+                    "creating commit")
+    _check(_gh("PATCH", repo_full, f"git/refs/heads/{BRANCH}", token, json={"sha": commit["sha"]}),
+           f"updating {BRANCH}")
+
+
+def store_site(prompt: str, files: list[dict], repo: str | None = None,
+               token: str | None = None, folder: str | None = None) -> dict:
+    """Commit a Vite project under sites/<timestamp>-<slug>/ and trigger its build.
+
+    `repo` ("owner/name") overrides the GITHUB_REPO default. Pass the `folder` returned by
+    an earlier call to overwrite that site (a refinement) instead of creating a new one.
+    The commit also updates sites/LATEST, which starts the workflow that builds the project
+    and deploys it to GitHub Pages. Returns the folder, Pages and Actions URLs.
+    """
+    repo_full = repo or REPO
+    if not _REPO_RE.match(repo_full):
+        raise GitHubStoreError(f"Invalid repository '{repo_full}', expected owner/repo")
+    if folder is not None and not SITE_FOLDER_RE.match(folder):
+        raise GitHubStoreError(f"Invalid site folder '{folder}'")
+
+    refine = folder is not None
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    if not refine:
+        folder = f"sites/{stamp}-{_slug(prompt)}"
+    message = f"{'Update' if refine else 'Add'} generated site: {prompt[:60]}"
+
+    if refine:
+        previous = (_file_text(repo_full, f"{folder}/PROMPT.md", token) or "").rstrip()
+        prompt_log = (previous + "\n\n" if previous else "") + "# Refinement\n\n" + prompt + "\n"
     else:
-        _check(_gh("POST", repo_full, "git/refs", token,
-                   json={"ref": f"refs/heads/{PAGES_BRANCH}", "sha": commit["sha"]}), "creating gh-pages")
-    return _ensure_pages_source(repo_full, token)
+        prompt_log = "# Prompt\n\n" + prompt + "\n"
+
+    tree = {f"{folder}/{f['path']}": f["content"] for f in files}
+    tree[f"{folder}/PROMPT.md"] = prompt_log
+    # The timestamp makes the pointer change on a refinement too, so the workflow runs again.
+    tree[LATEST_PATH] = f"{folder}\n{stamp}\n"
+    # Writing a workflow needs an extra token permission, so only do it when it is not there yet.
+    adds_workflow = _file_text(repo_full, WORKFLOW_PATH, token) != _WORKFLOW
+    if adds_workflow:
+        tree[WORKFLOW_PATH] = _WORKFLOW
+
+    # Pages must be on before the push, or the workflow's deploy step has nothing to deploy to.
+    pages_warning = _ensure_pages_source(repo_full, token)
+    try:
+        _commit(repo_full, token, message, tree, replace_folder=folder if refine else None)
+    except GitHubStoreError as e:
+        if adds_workflow:
+            raise GitHubStoreError(
+                f"{e}. This push adds {WORKFLOW_PATH}, so the token also needs the Workflows "
+                "permission (fine-grained) or the workflow scope (classic)") from e
+        raise
+
+    owner, name = repo_full.split("/", 1)
+    result = {
+        "github_url": f"https://github.com/{repo_full}/tree/{BRANCH}/{folder}",
+        "pages_url": f"https://{owner.lower()}.github.io/{name}/",
+        "actions_url": f"https://github.com/{repo_full}/actions/workflows/{WORKFLOW_PATH.rsplit('/', 1)[1]}",
+        "folder": folder,
+    }
+    if pages_warning:
+        result["pages_error"] = pages_warning
+    return result
 
 
 def _ensure_pages_source(repo_full: str, token: str | None) -> str | None:
-    """Make GitHub Pages serve the gh-pages branch root. Returns a warning if it could not."""
-    source = {"source": {"branch": PAGES_BRANCH, "path": "/"}}
+    """Make GitHub Pages deploy from GitHub Actions. Returns a warning if it could not."""
+    source = {"build_type": "workflow"}
     current = _gh("GET", repo_full, "pages", token)
     if current.status_code == 200:
-        src = current.json().get("source") or {}
-        if src.get("branch") == PAGES_BRANCH and src.get("path", "/") == "/":
+        if current.json().get("build_type") == "workflow":
             return None
         resp = _gh("PUT", repo_full, "pages", token, json=source)  # switch an existing site
-        action = f"switch Pages from '{src.get('branch')}' to '{PAGES_BRANCH}'"
+        action = "switch Pages to deploy from GitHub Actions"
     else:
         resp = _gh("POST", repo_full, "pages", token, json=source)  # Pages not enabled yet
-        action = f"enable Pages on '{PAGES_BRANCH}'"
+        action = "enable Pages"
     if resp.status_code in (200, 201, 204):
         return None
-    return (f"Site pushed to {PAGES_BRANCH}, but could not {action} (GitHub returned "
-            f"{resp.status_code}). Set it in the repo: Settings > Pages > Source: {PAGES_BRANCH} / root")
-
-
-def _prompt_log(prompt: str, api: str, folder: str, token: str | None) -> str:
-    """Existing PROMPT.md plus this refinement, so the folder keeps its full prompt history."""
-    resp = requests.get(f"{api}/{folder}/PROMPT.md", headers=_headers(token),
-                        params={"ref": BRANCH}, timeout=20)
-    previous = ""
-    if resp.status_code == 200:
-        previous = base64.b64decode(resp.json()["content"]).decode("utf-8").rstrip() + "\n\n"
-    return previous + "# Refinement\n\n" + prompt + "\n"
+    return (f"Could not {action} (GitHub returned {resp.status_code}), so the deploy will fail "
+            "until you set it in the repo: Settings > Pages > Source: GitHub Actions, then re-run "
+            "the workflow from the Actions tab.")

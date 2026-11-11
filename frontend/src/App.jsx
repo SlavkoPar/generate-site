@@ -134,8 +134,11 @@ function App() {
                       https://github.com/settings/personal-access-tokens
                     </a>
                   </p>
-                  <p>Fine-grained token: select that repo and set Contents to Read and write.</p>
-                  <p>Classic token: the repo scope is enough.</p>
+                  <p>
+                    Fine-grained token: select that repo and set Contents, Workflows and Pages to
+                    Read and write.
+                  </p>
+                  <p>Classic token: the repo and workflow scopes.</p>
                   <p>Enter that token when generating a site.</p>
                 </div>
               )}
@@ -163,7 +166,7 @@ function App() {
           placeholder={
             conversation.length
               ? "Describe the change, e.g. 'make the header dark and add a contact form'"
-              : "Describe the page, e.g. 'a landing page for a coffee shop with a menu and opening hours'"
+              : "Describe the site, e.g.'a landing page for a coffee shop with a menu and opening hours'"
           }
         />
         <button type="submit" disabled={loading || !prompt.trim()}>
@@ -188,8 +191,13 @@ function App() {
       {result?.github_error && <p className="error">Not saved to GitHub: {result.github_error}</p>}
       {result?.pages_url && (
         <p>
-          Live on GitHub Pages (may take a minute or two to appear):{' '}
+          Live on GitHub Pages once the build finishes (a minute or two):{' '}
           <a href={result.pages_url} target="_blank" rel="noreferrer">{result.pages_url}</a>
+        </p>
+      )}
+      {result?.actions_url && (
+        <p>
+          Build progress: <a href={result.actions_url} target="_blank" rel="noreferrer">{result.actions_url}</a>
         </p>
       )}
     </section>

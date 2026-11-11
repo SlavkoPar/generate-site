@@ -4,17 +4,34 @@ import re
 
 from .claude import ask_json
 
-SYSTEM_PROMPT = (
-    "You are a web designer and front-end developer. Given a description, build a "
-    "static website that works when served from a plain file host (GitHub Pages): "
-    "no build step, no server, no npm packages. Prefer ONE self-contained index.html "
-    "with inline <style> and <script>; add extra files only when clearly needed, and "
-    "reference them with relative paths (no leading slash). Make it responsive, "
-    "accessible and polished. Do not load external scripts or tracking. "
-    "Return every file with its relative path and full content, with no markdown fences. "
-    "If the conversation already contains a site, apply the user's new request to it, keep "
-    "everything they did not ask to change, and return the complete updated set of files."
-)
+SYSTEM_PROMPT = """\
+You are a web designer and front-end developer. Given a description, build a website as a \
+Vite + React + TypeScript project. Nobody reviews or edits the project before it ships: a \
+GitHub Actions job runs `npm install` and `npm run build` on Node 22 and publishes `dist/` \
+to GitHub Pages, so the project has to build cleanly exactly as you return it.
+
+Project layout:
+- package.json at the root with "type": "module" and the scripts "dev": "vite", \
+"build": "vite build", "preview": "vite preview". Keep the build script as plain \
+`vite build`: a type error you cannot check here must not block the deploy. Use these \
+versions: react and react-dom ^18.3.1, @types/react ^18.3.5, @types/react-dom ^18.3.0, \
+@vitejs/plugin-react ^4.3.1, typescript ^5.5.4, vite ^5.4.3. Add react-router-dom ^6.26.2 \
+only if the site has several pages. Avoid other dependencies unless the request needs them, \
+since you cannot verify that their APIs match what you remember.
+- vite.config.ts with the React plugin and `base: './'`. The site is served from a \
+subfolder (https://<owner>.github.io/<repo>/), so every asset URL has to be relative.
+- tsconfig.json, index.html at the root that loads /src/main.tsx, and the code under src/ \
+as .tsx and .ts files with typed props and data. Put static assets in public/.
+- For several pages use HashRouter, because GitHub Pages has no server-side rewrites and a \
+BrowserRouter route would 404 on reload.
+
+Do not return dotfiles (such as .gitignore), a lockfile, node_modules, dist, or binary \
+files; use inline SVG or CSS for graphics. Do not load external scripts or tracking.
+
+Make the site responsive, accessible and polished. Return every file with its path relative \
+to the project root and its full content, with no markdown fences. If the conversation \
+already contains a site, apply the user's new request to it, keep everything they did not \
+ask to change, and return the complete updated set of files."""
 
 OUTPUT_SCHEMA = {
     "type": "object",
@@ -36,13 +53,14 @@ OUTPUT_SCHEMA = {
     "additionalProperties": False,
 }
 
-ALLOWED_EXTENSIONS = {".html", ".css", ".js", ".json", ".svg", ".txt", ".md"}
-MAX_FILES = 20
+ALLOWED_EXTENSIONS = {".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".svg", ".txt", ".md"}
+REQUIRED_FILES = ("index.html", "package.json", "vite.config.ts")
+MAX_FILES = 80
 MAX_HISTORY_MESSAGES = 6  # last 3 request/response turns
 MAX_FILE_BYTES = 500_000
 
 
-FAVICON_PATH = "favicon.svg"
+FAVICON_PATH = "public/favicon.svg"  # Vite copies public/ to the site root
 FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Generated Site">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -64,7 +82,8 @@ FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" rol
 """
 _EXISTING_ICON_RE = re.compile(r"""<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*>\s*""", re.I)
 _HEAD_END_RE = re.compile(r"</head>", re.I)
-_ICON_LINK = '<link rel="icon" type="image/svg+xml" href="favicon.svg">'
+# A root-absolute href is how Vite refers to public/ files; the build rewrites it with `base`.
+_ICON_LINK = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
 
 
 def _add_favicon(files: dict[str, str]) -> None:
@@ -95,16 +114,20 @@ def _clean_path(path: str) -> str:
 
 
 def generate_site(prompt: str, history: list[dict] | None = None) -> list[dict]:
-    """Return a validated list of {"path", "content"} files; always includes index.html."""
+    """Return a validated list of {"path", "content"} files making up a Vite project."""
     data = ask_json(SYSTEM_PROMPT, prompt, OUTPUT_SCHEMA, history)
+    if len(data["files"]) > MAX_FILES:
+        # Dropping files would leave imports dangling and break the build.
+        raise InvalidSite(f"Generated site has more than {MAX_FILES} files; try a narrower request")
     files: dict[str, str] = {}
-    for f in data["files"][:MAX_FILES]:
+    for f in data["files"]:
         path = _clean_path(f["path"])
         if len(f["content"].encode("utf-8")) > MAX_FILE_BYTES:
             raise InvalidSite(f"{path} is too large")
         files[path] = f["content"]
-    if "index.html" not in files:
-        raise InvalidSite("Generated site has no index.html")
+    missing = [p for p in REQUIRED_FILES if p not in files]
+    if missing:
+        raise InvalidSite(f"Generated site is not a Vite project, missing: {', '.join(missing)}")
     _add_favicon(files)
     return [{"path": p, "content": c} for p, c in files.items()]
 
