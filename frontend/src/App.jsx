@@ -41,7 +41,7 @@ function App() {
       const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/generate-site`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, repo: repo.trim(), token: token.trim(), history: conversation, folder }),
+        body: JSON.stringify({ prompt, repo: repo.trim(), token: repo.trim() !== DEFAULT_REPO ? token.trim() : '', history: conversation, folder }),
       })
       const text = await res.text()
       let data
@@ -76,16 +76,18 @@ function App() {
             placeholder="owner/repo"
           />
         </label>
-        <label className="field">
-          GITHUB_TOKEN
-          <input
-            type="password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="optional: defaults to the server's token"
-            autoComplete="off"
-          />
-        </label>
+        {repo.trim() !== DEFAULT_REPO && (
+          <label className="field">
+            GITHUB_TOKEN
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="optional: defaults to the server's token"
+              autoComplete="off"
+            />
+          </label>
+        )}
         {history.length > 0 && (
           <select
             value=""
