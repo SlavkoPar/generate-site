@@ -211,10 +211,14 @@ form select, form button, .field input { font-size: 13px; }
 .settings { position: absolute; top: 10px; right: 12px; z-index: 10; width: auto; max-width: none; margin: 0; }
 .settings-btn { display: inline-flex; align-items: center; justify-content: center; padding: 6px; border-radius: 8px; border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit; cursor: pointer; }
 .settings-btn:hover, .settings-btn[aria-expanded="true"] { background: rgba(127,127,127,.15); }
-.settings-menu { position: absolute; top: calc(100% + 8px); right: 0; display: flex; flex-direction: column; gap: 10px; width: min(300px, 85vw); padding: 14px; border-radius: 10px; border: 1px solid rgba(127,127,127,.4); background: var(--bg); color: inherit; box-shadow: 0 8px 24px rgba(0,0,0,.2); text-align: left; }
+.settings-menu { position: absolute; top: calc(100% + 8px); right: 0; display: flex; flex-direction: column; gap: 10px; width: min(380px, 90vw); max-height: calc(100vh - 80px); overflow-y: auto; padding: 14px; border-radius: 10px; border: 1px solid rgba(127,127,127,.4); background: var(--bg); color: inherit; box-shadow: 0 8px 24px rgba(0,0,0,.2); text-align: left; }
 .settings-help { font-size: 12px; line-height: 1.45; opacity: .85; }
 .settings-help p { margin: 0 0 6px; }
 .settings-help p:last-child { margin-bottom: 0; }
+.settings-help h3 { margin: 8px 0 4px; font-size: 12px; font-weight: 600; }
+.settings-help h3:first-child { margin-top: 0; }
+.settings-help ul, .settings-help ol { margin: 0 0 6px; padding-left: 18px; }
+.settings-help li { margin-bottom: 3px; }
 .settings-help a { color: var(--accent); overflow-wrap: anywhere; }
 
 /* background colors */

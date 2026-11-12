@@ -126,22 +126,67 @@ function App() {
                   />
                 </label>
               )}
-              {repo.trim() !== DEFAULT_REPO && (
-                <div className="settings-help">
+              <div className="settings-help">
+                <h3>GitHub token</h3>
+                {repo.trim() === DEFAULT_REPO ? (
                   <p>
-                    Get a GitHub token that can write to your repo:{' '}
-                    <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
-                      https://github.com/settings/personal-access-tokens
-                    </a>
+                    This repo uses the server's token (GITHUB_TOKEN on Render). To publish to your own
+                    repo, change GITHUB_REPO and enter your token here.
                   </p>
-                  <p>
-                    Fine-grained token: select that repo and set Contents, Workflows and Pages to
-                    Read and write.
-                  </p>
-                  <p>Classic token: the repo and workflow scopes.</p>
-                  <p>Enter that token when generating a site.</p>
-                </div>
-              )}
+                ) : (
+                  <p>Enter a token that can write to your repo; it is used when you generate a site.</p>
+                )}
+                <p>
+                  Create or edit a token:{' '}
+                  <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
+                    https://github.com/settings/personal-access-tokens
+                  </a>
+                </p>
+                <ul>
+                  <li>
+                    Fine-grained token: select the repo and set Contents, Workflows and Pages to Read
+                    and write. If Pages was never enabled on the repo, also set Administration to Read
+                    and write.
+                  </li>
+                  <li>Classic token: the repo and workflow scopes.</li>
+                </ul>
+                <p>
+                  Editing a fine-grained token's permissions keeps the same token value. If you create
+                  a new token for the server, update GITHUB_TOKEN on Render and redeploy.
+                </p>
+
+                <h3>If something fails</h3>
+                <p>
+                  <strong>"Resource not accessible by personal access token"</strong> or{' '}
+                  <strong>"not built or published"</strong>: the token may not add the build workflow.
+                  Add the Workflows permission (or the workflow scope) and generate again. The site
+                  source is still saved to the repo.
+                </p>
+                <p>
+                  <strong>"Could not switch Pages to deploy from GitHub Actions"</strong> or{' '}
+                  <strong>"Could not enable Pages"</strong>: the token may not change the Pages
+                  setting. Either add the Pages permission above, or set it once by hand:
+                </p>
+                <ol>
+                  <li>
+                    Open{' '}
+                    <a href={`https://github.com/${repo.trim()}/settings/pages`} target="_blank" rel="noreferrer">
+                      Settings &gt; Pages
+                    </a>{' '}
+                    in the repo.
+                  </li>
+                  <li>Under Build and deployment &gt; Source, choose GitHub Actions.</li>
+                  <li>
+                    Open the{' '}
+                    <a href={`https://github.com/${repo.trim()}/actions`} target="_blank" rel="noreferrer">
+                      Actions
+                    </a>{' '}
+                    tab, pick the failed "Deploy generated site" run and click Re-run all jobs, or
+                    generate again.
+                  </li>
+                </ol>
+                <p>This is needed once per repo.</p>
+              </div>
             </div>
           )}
         </div>
