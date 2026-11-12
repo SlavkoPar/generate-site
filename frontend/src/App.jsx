@@ -154,7 +154,7 @@ function App() {
   return (
     <section id="center">
       <div className="title-row">
-        <h1>Generate Site and push it to github <span className="repo">{repo.trim()}</span></h1>
+        <h1>Generate Site and push it to github repo: <span className="repo">{repo.trim()}</span></h1>
         <div className="settings" ref={settingsRef}>
           <button
             type="button"
