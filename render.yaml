@@ -20,6 +20,15 @@ services:
       # OAuth client ID for "Sign in with Google" (Google Cloud Console > Credentials)
       - key: GOOGLE_CLIENT_ID
         sync: false
+      # Users, their GitHub tokens (encrypted with SECRET_KEY) and generation costs
+      # stored in SQLite. Without a persistent disk the file is lost on every deploy or restart:
+      # attach a disk (paid plans) and set SQLITE_PATH to a file on it, e.g. /var/data/data.db
+      # Resend API key for the email sent after each generation (https://resend.com)
+      - key: RESEND_API_KEY
+        sync: false
+      # Sender address on a domain verified in Resend, e.g. "Generate Site <noreply@example.com>"
+      - key: MAIL_FROM
+        sync: false
       - key: GITHUB_REPO
         value: SlavkoPar/AIGeneratedSite
       - key: GITHUB_BRANCH

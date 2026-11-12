@@ -1,8 +1,8 @@
 import anthropic
 import requests
-from flask import jsonify, request
+from flask import current_app, g, jsonify, request
 
-from services import github_store
+from services import db, github_store, mailer
 from services.auth import require_login
 from services.claude import GenerationRefused, MissingCredentials, get_usage, reset_usage
 from services.code_generator import generate_code
@@ -67,24 +67,37 @@ def _with_usage(result: dict) -> dict:
     return result
 
 
-def _handle(fn):
+def _handle(fn, on_done=None):
+    """Run a generation and turn its outcome into a JSON response.
+
+    `on_done(result, usage, error)` runs afterwards whether it worked or not (the Claude call
+    may have cost money either way) and may add keys to `result`.
+    """
     reset_usage()
+    status = 200
     try:
-        return jsonify(_with_usage(fn()))
+        result = fn()
     except GenerationRefused as e:
-        return jsonify(error=str(e)), 422
+        result, status = {"error": str(e)}, 422
     except MissingCredentials as e:
-        return jsonify(error=str(e)), 500
+        result, status = {"error": str(e)}, 500
     except anthropic.RateLimitError:
-        return jsonify(error="Rate limited, try again shortly"), 429
+        result, status = {"error": "Rate limited, try again shortly"}, 429
     except anthropic.AuthenticationError:
-        return jsonify(error="Server is missing a valid ANTHROPIC_API_KEY"), 500
+        result, status = {"error": "Server is missing a valid ANTHROPIC_API_KEY"}, 500
     except anthropic.APIConnectionError:
-        return jsonify(error="Could not reach the Claude API"), 502
+        result, status = {"error": "Could not reach the Claude API"}, 502
     except anthropic.APIStatusError as e:
-        return jsonify(error=f"Claude API error ({e.status_code})"), 502
+        result, status = {"error": f"Claude API error ({e.status_code})"}, 502
     except (InvalidSite, RuntimeError) as e:
-        return jsonify(error=str(e)), 502
+        result, status = {"error": str(e)}, 502
+    _with_usage(result)
+    if on_done:
+        try:
+            on_done(result, get_usage(), result.get("error", "") if status != 200 else "")
+        except Exception:  # bookkeeping must never cost the user their generated site
+            current_app.logger.exception("recording the generation failed")
+    return jsonify(result), status
 
 
 @api_bp.route("/generate", methods=["POST"])
@@ -115,16 +128,30 @@ def generate_site_route():
     if err:
         return err
 
+    email = g.user["email"]
+    stored_repo, stored_token = db.github_settings(email)
+    repo = (body.get("repo") or "").strip() or stored_repo or None
+    token = (body.get("token") or "").strip() or None
+    # The user's saved token is for their own repo; the default repo uses the server's token.
+    if not token and repo and repo != github_store.REPO:
+        token = stored_token or None
+    folder = (body.get("folder") or "").strip() or None
+
     def run():
         files = generate_site(prompt, history)
         result = {
             "files": [f["path"] for f in files],
             "history": extend_history(history, prompt, files),
         }
-        repo = (body.get("repo") or "").strip() or None
-        token = (body.get("token") or "").strip() or None
-        folder = (body.get("folder") or "").strip() or None
         _store(result, lambda: github_store.store_site(prompt, files, repo, token, folder), token)
         return result
 
-    return _handle(run)
+    def done(result, usage, error):
+        db.record_generation(email, prompt, repo or github_store.REPO, result, usage, error)
+        problem = mailer.send_generation_email(email, prompt, result, usage, error)
+        if problem:
+            result["email_error"] = problem
+        else:
+            result["email_sent_to"] = email
+
+    return _handle(run, done)

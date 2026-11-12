@@ -34,6 +34,23 @@ The API needs two environment variables:
   (`https://generate-site-ui.onrender.com`, plus `http://localhost:5173` for local
   work). Without it only the email option is offered.
 
+## User data and email
+
+Each signed-in user has a row in the database holding their GitHub repo, their GitHub
+token (encrypted with `SECRET_KEY`, never sent back to the browser) and one record per
+generation with its Claude token counts and cost. Changing `SECRET_KEY` makes the saved
+tokens unreadable; users then have to enter them again.
+
+- The database is a SQLite file, `backend/data.db` by default. Set `SQLITE_PATH` to put
+  it elsewhere. On Render the service's own filesystem is wiped on every deploy and
+  restart, so attach a persistent disk (paid plans) and point `SQLITE_PATH` at a file on
+  it, for example `/var/data/data.db`; otherwise users, tokens and costs are lost.
+- `RESEND_API_KEY`: API key from https://resend.com, used to email the user a summary
+  after each generation. Without it no email is sent and the result says so.
+- `MAIL_FROM`: sender address on a domain verified in Resend, for example
+  `Generate Site <noreply@example.com>`. Without it Resend's test sender is used, which
+  only delivers to the Resend account owner's own address.
+
 ## How a generated site is published
 
 Every generated site is a Vite + React + TypeScript project. It is committed to the

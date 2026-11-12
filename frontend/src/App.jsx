@@ -37,6 +37,8 @@ function App() {
   const settingsRef = useRef(null)
   const [session, setSession] = useState(loadSession)
   const [page, setPage] = useState(pageFromHash)
+  const [profile, setProfile] = useState(null)
+  const [profileNote, setProfileNote] = useState('')
   const isDefaultRepo = repo.trim() === DEFAULT_REPO
   // Email sign-in carries no name, so fall back to the part before the @.
   const userName = session ? session.user.name || session.user.email.split('@')[0] : ''
@@ -53,9 +55,46 @@ function App() {
     setError('')
   }, [])
 
-  function signOut() {
+  const signOut = useCallback(() => {
     saveSession(null)
     setSession(null)
+    setProfile(null)
+    setToken('')
+  }, [])
+
+  // The user's saved repo, whether a token is saved (never the token itself) and their costs.
+  const loadProfile = useCallback(async (sessionToken, { applyRepo = false } = {}) => {
+    const res = await fetch(`${API_URL}/api/profile`, { headers: { Authorization: `Bearer ${sessionToken}` } })
+    if (res.status === 401) return signOut()
+    if (!res.ok) return undefined
+    const data = await res.json()
+    setProfile(data)
+    if (applyRepo && data.github_repo) setRepo(data.github_repo)
+    return data
+  }, [signOut])
+
+  const sessionToken = session?.token
+  useEffect(() => {
+    if (sessionToken) loadProfile(sessionToken, { applyRepo: true }).catch(() => {})
+  }, [sessionToken, loadProfile])
+
+  async function saveProfile(changes) {
+    setProfileNote('')
+    try {
+      const res = await fetch(`${API_URL}/api/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+        body: JSON.stringify(changes),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 401) signOut()
+      if (!res.ok) throw new Error(data.error || `Could not save (${res.status})`)
+      setProfile(data)
+      setToken('')
+      setProfileNote('Saved.')
+    } catch (err) {
+      setProfileNote(err.message)
+    }
   }
 
   useEffect(() => {
@@ -108,6 +147,7 @@ function App() {
       setError(err.message)
     } finally {
       setLoading(false)
+      loadProfile(session.token).catch(() => {}) // refresh the running cost total
     }
   }
 
@@ -159,11 +199,44 @@ function App() {
                   type="password"
                   value={isDefaultRepo ? '' : token}
                   onChange={(e) => setToken(e.target.value)}
-                  placeholder={isDefaultRepo ? "not needed: this repo uses the server's token" : 'token that can write to this repo'}
+                  placeholder={
+                    isDefaultRepo
+                      ? "not needed: this repo uses the server's token"
+                      : profile?.has_github_token
+                        ? 'saved; type a new one to replace it'
+                        : 'token that can write to this repo'
+                  }
                   disabled={isDefaultRepo}
                   autoComplete="off"
                 />
               </label>
+              {session && (
+                <div className="profile-actions">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      saveProfile({
+                        github_repo: isDefaultRepo ? '' : repo.trim(),
+                        ...(!isDefaultRepo && token.trim() ? { github_token: token.trim() } : {}),
+                      })
+                    }
+                  >
+                    Save
+                  </button>
+                  {profile?.has_github_token && (
+                    <button type="button" className="link-btn" onClick={() => saveProfile({ github_token: '' })}>
+                      Remove saved token
+                    </button>
+                  )}
+                  {profileNote && <span className="profile-note">{profileNote}</span>}
+                </div>
+              )}
+              {profile && (
+                <p className="profile-cost">
+                  Claude cost so far: <strong>${profile.total_cost_usd.toFixed(4)}</strong> over{' '}
+                  {profile.generation_count} generation{profile.generation_count === 1 ? '' : 's'}
+                </p>
+              )}
               <a className="profile-link" href="#/help" onClick={() => setSettingsOpen(false)}>
                 How to get a GitHub token
               </a>
@@ -220,6 +293,8 @@ function App() {
           {result.usage.cost_usd.toFixed(4)} USD ({result.usage.model})
         </p>
       )}
+      {result?.email_sent_to && <p className="usage">A summary was emailed to {result.email_sent_to}.</p>}
+      {result?.email_error && <p className="usage">No email was sent: {result.email_error}</p>}
       {result?.pages_error && <p className="error">{result.pages_error}</p>}
       {result?.github_error && <p className="error">Not saved to GitHub: {result.github_error}</p>}
       {result?.pages_url && (

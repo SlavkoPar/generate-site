@@ -220,6 +220,10 @@ form select, form button, .field input { font-size: 13px; }
 .profile-link { font-size: 13px; color: var(--accent); }
 .profile-signout { align-self: flex-start; font-size: 13px; }
 .field input:disabled { opacity: .6; cursor: not-allowed; }
+.profile-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; }
+.profile-actions > button:first-child { padding: 5px 14px; font-size: 13px; }
+.profile-note { font-size: 12px; opacity: .8; }
+.profile-cost { margin: 0; padding-top: 10px; border-top: 1px solid rgba(127,127,127,.3); font-size: 13px; }
 
 /* help page */
 .help { text-align: left; font-size: 14px; line-height: 1.55; }

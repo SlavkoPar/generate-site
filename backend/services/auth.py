@@ -6,6 +6,8 @@ import requests
 from flask import g, jsonify, request
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
+from . import db
+
 SESSION_MAX_AGE = 30 * 24 * 3600  # seconds
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _GOOGLE_TOKENINFO = "https://oauth2.googleapis.com/tokeninfo"
@@ -32,6 +34,7 @@ def _serializer() -> URLSafeTimedSerializer:
 
 def issue_session(email: str, provider: str, name: str = "") -> dict:
     user = {"email": email, "provider": provider, "name": name}
+    db.ensure_user(email, name, provider, login=True)
     return {"token": _serializer().dumps(user), "user": user}
 
 
@@ -85,7 +88,9 @@ def require_login(view):
         except AuthError as e:
             return jsonify(error=str(e)), e.status
         if not user:
-            return jsonify(error="Sign in to generate a site"), 401
+            return jsonify(error="Sign in first"), 401
+        # Sessions issued before the database existed have no row yet.
+        db.ensure_user(user["email"], user.get("name", ""), user.get("provider", ""))
         g.user = user
         return view(*args, **kwargs)
     return wrapper
