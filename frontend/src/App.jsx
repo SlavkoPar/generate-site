@@ -42,6 +42,9 @@ function App() {
   const [profile, setProfile] = useState(null)
   const [profileNote, setProfileNote] = useState('')
   const isDefaultRepo = repo.trim() === DEFAULT_REPO
+  // Where GitHub Pages serves the repo: https://<owner>.github.io/<name>/
+  const [repoOwner, repoName] = repo.trim().split('/')
+  const pagesUrl = repoOwner && repoName ? `https://${repoOwner.toLowerCase()}.github.io/${repoName}/` : ''
   // Email sign-in carries no name, so fall back to the part before the @.
   const userName = session ? session.user.name || session.user.email.split('@')[0] : ''
 
@@ -157,8 +160,15 @@ function App() {
     <section id="center">
       <div className="title-row">
         <h1>
-          Generate Site and push it to github
-          {session && <> repo: <span className="repo">{repo.trim()}</span></>}
+          Generate Project (Vite + React + TypeScript).
+          <br />
+          Push it to the github repo{session && <>: <span className="repo">{repo.trim()}</span></>}.
+          {session && pagesUrl && (
+            <>
+              <br />
+              Browse site <a href={pagesUrl} target="_blank" rel="noreferrer">{pagesUrl}</a>
+            </>
+          )}
         </h1>
         <div className="settings" ref={settingsRef}>
           <button
