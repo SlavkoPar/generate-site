@@ -18,6 +18,22 @@ select the repository, and apply `render.yaml`. When prompted, set the secrets
 Pages settings (fine-grained: Contents, Workflows and Pages set to Read and write;
 classic: the `repo` and `workflow` scopes).
 
+## Sign-in
+
+Generating a site requires signing in, with Google or with an email address alone.
+The email option sends no message and checks nothing: it identifies the user, it does
+not prove they own the address.
+
+The API needs two environment variables:
+
+- `SECRET_KEY`: signs the sessions. Render generates it from `render.yaml`; locally,
+  put any long random string in `backend/.env`.
+- `GOOGLE_CLIENT_ID`: enables the Google button. Create it in the Google Cloud Console
+  under **APIs & Services > Credentials > Create credentials > OAuth client ID**, type
+  **Web application**, and add the UI's address to **Authorized JavaScript origins**
+  (`https://generate-site-ui.onrender.com`, plus `http://localhost:5173` for local
+  work). Without it only the email option is offered.
+
 ## How a generated site is published
 
 Every generated site is a Vite + React + TypeScript project. It is committed to the

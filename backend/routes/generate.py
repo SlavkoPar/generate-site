@@ -3,6 +3,7 @@ import requests
 from flask import jsonify, request
 
 from services import github_store
+from services.auth import require_login
 from services.claude import GenerationRefused, MissingCredentials, get_usage, reset_usage
 from services.code_generator import generate_code
 from services.site_generator import InvalidSite, extend_history, generate_site
@@ -87,6 +88,7 @@ def _handle(fn):
 
 
 @api_bp.route("/generate", methods=["POST"])
+@require_login
 def generate():
     prompt, err = _read_prompt()
     if err:
@@ -102,6 +104,7 @@ def generate():
 
 
 @api_bp.route("/generate-site", methods=["POST"])
+@require_login
 def generate_site_route():
     prompt, err = _read_prompt()
     if err:

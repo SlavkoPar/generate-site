@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
+import { API_URL, SignIn, loadSession, saveSession } from './Auth'
 import { DEFAULT_PROMPTS } from './defaultPrompts'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
@@ -31,6 +32,18 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef(null)
+  const [session, setSession] = useState(loadSession)
+
+  const signIn = useCallback((next) => {
+    saveSession(next)
+    setSession(next)
+    setError('')
+  }, [])
+
+  function signOut() {
+    saveSession(null)
+    setSession(null)
+  }
 
   useEffect(() => {
     if (!settingsOpen) return undefined
@@ -59,9 +72,9 @@ function App() {
     setError('')
     setResult(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/generate-site`, {
+      const res = await fetch(`${API_URL}/api/generate-site`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
         body: JSON.stringify({ prompt, repo: repo.trim(), token: repo.trim() !== DEFAULT_REPO ? token.trim() : '', history: conversation, folder }),
       })
       const text = await res.text()
@@ -73,6 +86,7 @@ function App() {
           `Server returned a non-JSON response (${res.status}). The API may be down, starting up, or timed out.`,
         )
       }
+      if (res.status === 401) signOut() // session expired or no longer valid: ask to sign in again
       if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
       setResult(data)
       setConversation(data.history ?? [])
@@ -191,6 +205,15 @@ function App() {
           )}
         </div>
       </div>
+      {session ? (
+        <p className="account">
+          Signed in as <strong>{session.user.name || session.user.email}</strong>
+          {session.user.name && ` (${session.user.email})`}{' '}
+          <button type="button" className="link-btn" onClick={signOut}>Sign out</button>
+        </p>
+      ) : (
+        <SignIn onSignIn={signIn} />
+      )}
       <form onSubmit={handleSubmit}>
         {history.length > 0 && (
           <select
@@ -214,8 +237,8 @@ function App() {
               : "Describe the site, e.g.'a landing page for a coffee shop with a menu and opening hours'"
           }
         />
-        <button type="submit" disabled={loading || !prompt.trim()}>
-          {loading ? 'Generating…' : 'Generate'}
+        <button type="submit" disabled={loading || !session || !prompt.trim()}>
+          {loading ? 'Generating…' : session ? 'Generate' : 'Sign in to generate'}
         </button>
       </form>
       {error && <p className="error">{error}</p>}

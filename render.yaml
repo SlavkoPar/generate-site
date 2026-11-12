@@ -14,6 +14,12 @@ services:
         sync: false
       - key: GITHUB_TOKEN
         sync: false
+      # Signs the login sessions; Render generates it once and keeps it.
+      - key: SECRET_KEY
+        generateValue: true
+      # OAuth client ID for "Sign in with Google" (Google Cloud Console > Credentials)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       - key: GITHUB_REPO
         value: SlavkoPar/AIGeneratedSite
       - key: GITHUB_BRANCH

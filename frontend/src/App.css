@@ -221,6 +221,19 @@ form select, form button, .field input { font-size: 13px; }
 .settings-help li { margin-bottom: 3px; }
 .settings-help a { color: var(--accent); overflow-wrap: anywhere; }
 
+/* sign-in */
+.signin { padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(127,127,127,.35); background: var(--panel-bg); text-align: left; }
+.signin-title { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.signin-options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.signin-google { min-height: 40px; display: flex; align-items: center; }
+.signin-note, .signin-or { font-size: 12px; opacity: .7; }
+.signin-email { flex: 1 1 260px; display: flex; flex-direction: row; gap: 8px; min-height: 0; max-width: none; }
+.signin-email input { flex: 1 1 auto; min-width: 0; padding: 8px 10px; font-size: 13px; border-radius: 8px; border: 1px solid rgba(127,127,127,.4); background: var(--input-bg); color: inherit; }
+.signin-email button { flex: 0 0 auto; white-space: nowrap; }
+.signin .error { margin: 8px 0 0; font-size: 13px; }
+.account { margin: 0; font-size: 13px; text-align: left; }
+.link-btn { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+
 /* background colors */
 :root {
   --page-bg: #e9edfb;
