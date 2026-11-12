@@ -267,22 +267,33 @@ def store_site(prompt: str, files: list[dict], repo: str | None = None,
 
     # Pages must be on before the push, or the workflow's deploy step has nothing to deploy to.
     pages_warning = _ensure_pages_source(repo_full, token)
+    replace_folder = folder if refine else None
+    workflow_blocked = False
     try:
-        _commit(repo_full, token, message, tree, replace_folder=folder if refine else None)
-    except GitHubStoreError as e:
-        if adds_workflow:
-            raise GitHubStoreError(
-                f"{e}. This push adds {WORKFLOW_PATH}, so the token also needs the Workflows "
-                "permission (fine-grained) or the workflow scope (classic)") from e
-        raise
+        _commit(repo_full, token, message, tree, replace_folder)
+    except GitHubStoreError:
+        if not adds_workflow:
+            raise
+        # Retry without the workflow: if that works, the token is only missing the permission
+        # to write workflows, and the source is saved even though nothing builds it yet.
+        del tree[WORKFLOW_PATH]
+        _commit(repo_full, token, message, tree, replace_folder)
+        workflow_blocked = True
 
-    owner, name = repo_full.split("/", 1)
     result = {
         "github_url": f"https://github.com/{repo_full}/tree/{BRANCH}/{folder}",
-        "pages_url": f"https://{owner.lower()}.github.io/{name}/",
-        "actions_url": f"https://github.com/{repo_full}/actions/workflows/{WORKFLOW_PATH.rsplit('/', 1)[1]}",
         "folder": folder,
     }
+    if workflow_blocked:
+        result["pages_error"] = (
+            f"The site source is saved, but it was not built or published: the GitHub token may "
+            f"not add {WORKFLOW_PATH}. Give the token the Workflows permission set to Read and "
+            "write (fine-grained token) or the workflow scope (classic token), then generate again.")
+        return result
+    owner, name = repo_full.split("/", 1)
+    result["pages_url"] = f"https://{owner.lower()}.github.io/{name}/"
+    result["actions_url"] = (
+        f"https://github.com/{repo_full}/actions/workflows/{WORKFLOW_PATH.rsplit('/', 1)[1]}")
     if pages_warning:
         result["pages_error"] = pages_warning
     return result
