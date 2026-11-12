@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import { API_URL, SignIn, loadSession, saveSession } from './Auth'
 import { DEFAULT_PROMPTS } from './defaultPrompts'
+import { Admin } from './Admin'
 import { Help } from './Help'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
@@ -21,7 +22,8 @@ function loadHistory() {
   return DEFAULT_PROMPTS
 }
 
-const pageFromHash = () => (window.location.hash === '#/help' ? 'help' : 'home')
+const PAGES = { '#/help': 'help', '#/users': 'users' }
+const pageFromHash = () => PAGES[window.location.hash] ?? 'home'
 
 function App() {
   const [repo, setRepo] = useState(DEFAULT_REPO)
@@ -250,7 +252,15 @@ function App() {
           )}
         </div>
       </div>
-      {page === 'help' ? (
+      {profile?.is_admin && (
+        <nav className="tabs" aria-label="Sections">
+          <a href="#/" className={page === 'home' ? 'active' : ''}>Generate</a>
+          <a href="#/users" className={page === 'users' ? 'active' : ''}>Users</a>
+        </nav>
+      )}
+      {page === 'users' && profile?.is_admin ? (
+        <Admin sessionToken={session.token} />
+      ) : page === 'help' ? (
         <Help repo={repo.trim()} isDefaultRepo={isDefaultRepo} />
       ) : (
         <>

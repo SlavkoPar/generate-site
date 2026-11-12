@@ -51,6 +51,12 @@ tokens unreadable; users then have to enter them again.
   `Generate Site <noreply@example.com>`. Without it Resend's test sender is used, which
   only delivers to the Resend account owner's own address.
 
+## Administrator
+
+Addresses listed in `ADMIN_EMAILS` (comma-separated) get an extra **Users** tab with all
+registered users and their generations. It only appears when the administrator signs in
+with Google, because the email-only sign-in does not prove who is typing the address.
+
 ## How a generated site is published
 
 Every generated site is a Vite + React + TypeScript project. It is committed to the

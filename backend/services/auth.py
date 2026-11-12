@@ -73,6 +73,13 @@ def login_with_google(credential: str) -> dict:
     return issue_session(info["email"].lower(), "google", info.get("name", ""))
 
 
+def is_admin(user: dict | None) -> bool:
+    """Admins are the addresses in ADMIN_EMAILS, and only when signed in with Google: an
+    email-only sign-in proves nothing, so anyone could type an admin's address."""
+    admins = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
+    return bool(user) and user.get("provider") == "google" and user.get("email") in admins
+
+
 def current_user() -> dict | None:
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):

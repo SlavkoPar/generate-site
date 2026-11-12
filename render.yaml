@@ -29,6 +29,9 @@ services:
       # Sender address on a domain verified in Resend, e.g. "Generate Site <noreply@example.com>"
       - key: MAIL_FROM
         sync: false
+      # Comma-separated addresses that see the Users tab (only when signed in with Google)
+      - key: ADMIN_EMAILS
+        sync: false
       - key: GITHUB_REPO
         value: SlavkoPar/AIGeneratedSite
       - key: GITHUB_BRANCH

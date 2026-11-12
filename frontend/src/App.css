@@ -225,6 +225,25 @@ form select, form button, .field input { font-size: 13px; }
 .profile-note { font-size: 12px; opacity: .8; }
 .profile-cost { margin: 0; padding-top: 10px; border-top: 1px solid rgba(127,127,127,.3); font-size: 13px; }
 
+/* admin: tabs and users list */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid rgba(127,127,127,.3); }
+.tabs a { padding: 6px 14px; font-size: 13px; color: inherit; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.admin { text-align: left; font-size: 13px; }
+.admin-summary { margin: 0 0 10px; opacity: .8; }
+.admin details { border: 1px solid rgba(127,127,127,.3); border-radius: 8px; margin-bottom: 8px; background: var(--panel-bg); }
+.admin summary { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 8px 12px; cursor: pointer; }
+.admin summary strong { overflow-wrap: anywhere; }
+.admin-meta { font-size: 12px; opacity: .75; }
+.admin-table-wrap { overflow-x: auto; padding: 0 12px 10px; }
+.admin table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.admin th, .admin td { padding: 5px 8px; text-align: left; vertical-align: top; border-top: 1px solid rgba(127,127,127,.25); }
+.admin th { font-weight: 600; white-space: nowrap; }
+.admin td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.admin td.prompt { min-width: 220px; overflow-wrap: anywhere; }
+.admin a { color: var(--accent); }
+.admin-empty { margin: 0; padding: 0 12px 10px; opacity: .7; }
+
 /* help page */
 .help { text-align: left; font-size: 14px; line-height: 1.55; }
 .help h2 { margin: 10px 0 8px; font-size: 18px; }

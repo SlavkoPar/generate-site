@@ -2,7 +2,7 @@ import re
 
 from flask import g, jsonify, request
 
-from services import db
+from services import auth, db
 from services.auth import require_login
 
 from . import api_bp
@@ -13,7 +13,19 @@ _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 @api_bp.route("/profile", methods=["GET"])
 @require_login
 def get_profile():
-    return jsonify(db.profile(g.user["email"]))
+    return jsonify(_profile())
+
+
+def _profile() -> dict:
+    return {**db.profile(g.user["email"]), "is_admin": auth.is_admin(g.user)}
+
+
+@api_bp.route("/admin/users", methods=["GET"])
+@require_login
+def admin_users():
+    if not auth.is_admin(g.user):
+        return jsonify(error="Only the administrator can see this"), 403
+    return jsonify(users=db.all_users())
 
 
 @api_bp.route("/profile", methods=["PUT"])
@@ -32,4 +44,4 @@ def update_profile():
             return jsonify(error="'github_token' is invalid"), 400
         token = token.strip()
     db.save_github(g.user["email"], repo, token)
-    return jsonify(db.profile(g.user["email"]))
+    return jsonify(_profile())

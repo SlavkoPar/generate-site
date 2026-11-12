@@ -10,7 +10,7 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import (Column, DateTime, Float, ForeignKey, Integer, MetaData, String, Table, Text,
-                        create_engine, func, insert, select, update)
+                        create_engine, insert, select, update)
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 RECENT_GENERATIONS = 20
@@ -138,37 +138,53 @@ def record_generation(email: str, prompt: str, repo: str, result: dict | None, u
         ))
 
 
-def profile(email: str) -> dict:
-    """What the profile menu shows. The GitHub token itself is never included."""
-    with engine.connect() as conn:
-        user = conn.execute(select(users).where(users.c.email == email)).first()
-        total, count = conn.execute(
-            select(func.coalesce(func.sum(generations.c.cost_usd), 0.0), func.count(generations.c.id))
-            .where(generations.c.user_id == user.id)).one()
-        recent = conn.execute(
-            select(generations).where(generations.c.user_id == user.id)
-            .order_by(generations.c.id.desc()).limit(RECENT_GENERATIONS)).all()
+def _generation(g) -> dict:
+    return {
+        "created_at": g.created_at.isoformat(),
+        "prompt": g.prompt,
+        "repo": g.repo,
+        "model": g.model,
+        "input_tokens": g.input_tokens,
+        "output_tokens": g.output_tokens,
+        "cost_usd": g.cost_usd,
+        "github_url": g.github_url,
+        "pages_url": g.pages_url,
+        "error": g.error,
+    }
+
+
+def _user(user, gens: list) -> dict:
+    """A user as sent to the client. The GitHub token itself is never included."""
     return {
         "email": user.email,
         "name": user.name,
         "provider": user.provider,
         "github_repo": user.github_repo,
         "has_github_token": bool(user.github_token_enc),
-        "total_cost_usd": round(float(total), 6),
-        "generation_count": count,
-        "generations": [
-            {
-                "created_at": g.created_at.isoformat(),
-                "prompt": g.prompt,
-                "repo": g.repo,
-                "model": g.model,
-                "input_tokens": g.input_tokens,
-                "output_tokens": g.output_tokens,
-                "cost_usd": g.cost_usd,
-                "github_url": g.github_url,
-                "pages_url": g.pages_url,
-                "error": g.error,
-            }
-            for g in recent
-        ],
+        "created_at": user.created_at.isoformat(),
+        "last_login_at": user.last_login_at.isoformat(),
+        "total_cost_usd": round(sum(g.cost_usd for g in gens), 6),
+        "generation_count": len(gens),
+        "generations": [_generation(g) for g in gens[:RECENT_GENERATIONS]],
     }
+
+
+def profile(email: str) -> dict:
+    """What the profile menu shows: the user, their running cost and latest generations."""
+    with engine.connect() as conn:
+        user = conn.execute(select(users).where(users.c.email == email)).first()
+        gens = conn.execute(
+            select(generations).where(generations.c.user_id == user.id)
+            .order_by(generations.c.id.desc())).all()
+    return _user(user, gens)
+
+
+def all_users() -> list[dict]:
+    """Every registered user with their latest generations, newest sign-in first (admin view)."""
+    with engine.connect() as conn:
+        rows = conn.execute(select(users).order_by(users.c.last_login_at.desc())).all()
+        gens = conn.execute(select(generations).order_by(generations.c.id.desc())).all()
+    by_user: dict[int, list] = {}
+    for g in gens:
+        by_user.setdefault(g.user_id, []).append(g)
+    return [_user(u, by_user.get(u.id, [])) for u in rows]
