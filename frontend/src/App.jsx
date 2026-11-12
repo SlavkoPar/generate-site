@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import { API_URL, SignIn, loadSession, saveSession } from './Auth'
 import { DEFAULT_PROMPTS } from './defaultPrompts'
+import { Help } from './Help'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
 const MAX_HISTORY = 20
@@ -20,6 +21,8 @@ function loadHistory() {
   return DEFAULT_PROMPTS
 }
 
+const pageFromHash = () => (window.location.hash === '#/help' ? 'help' : 'home')
+
 function App() {
   const [repo, setRepo] = useState(DEFAULT_REPO)
   const [token, setToken] = useState('') // never persisted
@@ -33,6 +36,16 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef(null)
   const [session, setSession] = useState(loadSession)
+  const [page, setPage] = useState(pageFromHash)
+  const isDefaultRepo = repo.trim() === DEFAULT_REPO
+  // Email sign-in carries no name, so fall back to the part before the @.
+  const userName = session ? session.user.name || session.user.email.split('@')[0] : ''
+
+  useEffect(() => {
+    const onHash = () => setPage(pageFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   const signIn = useCallback((next) => {
     saveSession(next)
@@ -75,7 +88,7 @@ function App() {
       const res = await fetch(`${API_URL}/api/generate-site`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
-        body: JSON.stringify({ prompt, repo: repo.trim(), token: repo.trim() !== DEFAULT_REPO ? token.trim() : '', history: conversation, folder }),
+        body: JSON.stringify({ prompt, repo: repo.trim(), token: isDefaultRepo ? '' : token.trim(), history: conversation, folder }),
       })
       const text = await res.text()
       let data
@@ -105,22 +118,34 @@ function App() {
         <div className="settings" ref={settingsRef}>
           <button
             type="button"
-            className="settings-btn"
-            aria-label="Settings"
+            className={`settings-btn${session ? ' avatar' : ''}`}
+            aria-label="Profile"
             aria-haspopup="true"
             aria-expanded={settingsOpen}
             onClick={() => setSettingsOpen((open) => !open)}
           >
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-            </svg>
+            {session ? (
+              <span aria-hidden="true">{userName[0].toUpperCase()}</span>
+            ) : (
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21a8 8 0 0 1 16 0" />
+              </svg>
+            )}
           </button>
           {settingsOpen && (
-            <div className="settings-menu" role="dialog" aria-label="Settings">
+            <div className="settings-menu" role="dialog" aria-label="Profile">
+              {session ? (
+                <div className="profile">
+                  <span className="profile-name">{userName}</span>
+                  <span className="profile-email">{session.user.email}</span>
+                </div>
+              ) : (
+                <p className="profile-email">Not signed in. Sign in on the main page to generate a site.</p>
+              )}
               <label className="field">
-                GITHUB_REPO
+                GitHub repo
                 <input
                   type="text"
                   value={repo}
@@ -128,92 +153,32 @@ function App() {
                   placeholder="owner/repo"
                 />
               </label>
-              {repo.trim() !== DEFAULT_REPO && (
-                <label className="field">
-                  GITHUB_TOKEN
-                  <input
-                    type="password"
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    placeholder="optional: defaults to the server's token"
-                    autoComplete="off"
-                  />
-                </label>
+              <label className="field">
+                GitHub token
+                <input
+                  type="password"
+                  value={isDefaultRepo ? '' : token}
+                  onChange={(e) => setToken(e.target.value)}
+                  placeholder={isDefaultRepo ? "not needed: this repo uses the server's token" : 'token that can write to this repo'}
+                  disabled={isDefaultRepo}
+                  autoComplete="off"
+                />
+              </label>
+              <a className="profile-link" href="#/help" onClick={() => setSettingsOpen(false)}>
+                How to get a GitHub token
+              </a>
+              {session && (
+                <button type="button" className="link-btn profile-signout" onClick={signOut}>Sign out</button>
               )}
-              <div className="settings-help">
-                <h3>GitHub token</h3>
-                {repo.trim() === DEFAULT_REPO ? (
-                  <p>
-                    This repo uses the server's token (GITHUB_TOKEN on Render). To publish to your own
-                    repo, change GITHUB_REPO and enter your token here.
-                  </p>
-                ) : (
-                  <p>Enter a token that can write to your repo; it is used when you generate a site.</p>
-                )}
-                <p>
-                  Create or edit a token:{' '}
-                  <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
-                    https://github.com/settings/personal-access-tokens
-                  </a>
-                </p>
-                <ul>
-                  <li>
-                    Fine-grained token: select the repo and set Contents, Workflows and Pages to Read
-                    and write. If Pages was never enabled on the repo, also set Administration to Read
-                    and write.
-                  </li>
-                  <li>Classic token: the repo and workflow scopes.</li>
-                </ul>
-                <p>
-                  Editing a fine-grained token's permissions keeps the same token value. If you create
-                  a new token for the server, update GITHUB_TOKEN on Render and redeploy.
-                </p>
-
-                <h3>If something fails</h3>
-                <p>
-                  <strong>"Resource not accessible by personal access token"</strong> or{' '}
-                  <strong>"not built or published"</strong>: the token may not add the build workflow.
-                  Add the Workflows permission (or the workflow scope) and generate again. The site
-                  source is still saved to the repo.
-                </p>
-                <p>
-                  <strong>"Could not switch Pages to deploy from GitHub Actions"</strong> or{' '}
-                  <strong>"Could not enable Pages"</strong>: the token may not change the Pages
-                  setting. Either add the Pages permission above, or set it once by hand:
-                </p>
-                <ol>
-                  <li>
-                    Open{' '}
-                    <a href={`https://github.com/${repo.trim()}/settings/pages`} target="_blank" rel="noreferrer">
-                      Settings &gt; Pages
-                    </a>{' '}
-                    in the repo.
-                  </li>
-                  <li>Under Build and deployment &gt; Source, choose GitHub Actions.</li>
-                  <li>
-                    Open the{' '}
-                    <a href={`https://github.com/${repo.trim()}/actions`} target="_blank" rel="noreferrer">
-                      Actions
-                    </a>{' '}
-                    tab, pick the failed "Deploy generated site" run and click Re-run all jobs, or
-                    generate again.
-                  </li>
-                </ol>
-                <p>This is needed once per repo.</p>
-              </div>
             </div>
           )}
         </div>
       </div>
-      {session ? (
-        <p className="account">
-          Signed in as <strong>{session.user.name || session.user.email}</strong>
-          {session.user.name && ` (${session.user.email})`}{' '}
-          <button type="button" className="link-btn" onClick={signOut}>Sign out</button>
-        </p>
+      {page === 'help' ? (
+        <Help repo={repo.trim()} isDefaultRepo={isDefaultRepo} />
       ) : (
-        <SignIn onSignIn={signIn} />
-      )}
+        <>
+      {!session && <SignIn onSignIn={signIn} />}
       <form onSubmit={handleSubmit}>
         {history.length > 0 && (
           <select
@@ -267,6 +232,8 @@ function App() {
         <p>
           Build progress: <a href={result.actions_url} target="_blank" rel="noreferrer">{result.actions_url}</a>
         </p>
+      )}
+        </>
       )}
     </section>
   )
