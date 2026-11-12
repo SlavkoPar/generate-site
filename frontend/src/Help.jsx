@@ -76,6 +76,15 @@ export function Help({ repo, isDefaultRepo }) {
         </li>
       </ol>
       <p>This is needed once per repo.</p>
+
+      <h3>Emails</h3>
+      <p>
+        After each generation a summary (request, links and Claude cost) is emailed to the address
+        you signed in with. Emails are sent by{' '}
+        <a href="https://resend.com/" target="_blank" rel="noreferrer">https://resend.com/</a>. If
+        none arrives, check your spam folder; the result on the main page also says whether the
+        email was sent.
+      </p>
     </article>
   )
 }
