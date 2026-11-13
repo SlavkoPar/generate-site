@@ -277,6 +277,14 @@ function App() {
       ) : (
         <>
       {!session && <SignIn onSignIn={signIn} />}
+      {!session && (
+        <p className="usage">
+          Visit generated site at:{' '}
+          <a href={`https://github.com/${DEFAULT_REPO}`} target="_blank" rel="noreferrer">
+            https://github.com/{DEFAULT_REPO}
+          </a>
+        </p>
+      )}
       <form onSubmit={handleSubmit}>
         {history.length > 0 && (
           <select
