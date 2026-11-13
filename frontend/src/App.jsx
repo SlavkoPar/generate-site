@@ -280,8 +280,9 @@ function App() {
       {!session && (
         <p className="usage">
           Visit generated site at:{' '}
-          <a href={`https://github.com/${DEFAULT_REPO}`} target="_blank" rel="noreferrer">
-            https://github.com/{DEFAULT_REPO}
+          {/* github.com/<repo>/sites itself is a 404; a folder lives under /tree/<branch>/ */}
+          <a href={`https://github.com/${DEFAULT_REPO}/tree/HEAD/sites`} target="_blank" rel="noreferrer">
+            https://github.com/{DEFAULT_REPO}/sites
           </a>
         </p>
       )}
