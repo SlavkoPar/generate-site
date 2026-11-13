@@ -44,9 +44,6 @@ export function Help({ repo, isDefaultRepo }) {
           set Contents, Workflows and Pages to Read and write. If Pages was never enabled on the
           repo, also set Administration to Read and write.
         </li>
-        <li>
-          <strong>Classic token:</strong> tick the repo and workflow scopes.
-        </li>
         <li>Copy the token and paste it into the profile menu at the top right.</li>
       </ol>
       <p>
@@ -58,7 +55,7 @@ export function Help({ repo, isDefaultRepo }) {
       <p>
         <strong>"Resource not accessible by personal access token"</strong> or{' '}
         <strong>"not built or published"</strong>: the token may not add the build workflow. Add the
-        Workflows permission (or the workflow scope) and generate again. The site source is still
+        Workflows permission and generate again. The site source is still
         saved to the repo.
       </p>
       <p>
