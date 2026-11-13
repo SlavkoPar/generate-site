@@ -57,6 +57,9 @@ Addresses listed in `ADMIN_EMAILS` (comma-separated) get an extra **Users** tab 
 registered users and their generations. It only appears when the administrator signs in
 with Google, because the email-only sign-in does not prove who is typing the address.
 
+Every other user may run 2 generations (`GENERATION_LIMIT` in `backend/services/auth.py`);
+administrators have no limit. Only generations that reached Claude are counted.
+
 ## How a generated site is published
 
 Every generated site is a Vite + React + TypeScript project. It is committed to the

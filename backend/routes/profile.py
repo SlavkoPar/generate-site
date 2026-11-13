@@ -17,7 +17,11 @@ def get_profile():
 
 
 def _profile() -> dict:
-    return {**db.profile(g.user["email"]), "is_admin": auth.is_admin(g.user)}
+    admin = auth.is_admin(g.user)
+    data = db.profile(g.user["email"])
+    limit = None if admin else auth.GENERATION_LIMIT
+    left = None if admin else max(0, limit - data["generations_used"])
+    return {**data, "is_admin": admin, "generation_limit": limit, "generations_left": left}
 
 
 @api_bp.route("/admin/users", methods=["GET"])

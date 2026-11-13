@@ -46,6 +46,8 @@ function App() {
   const [repoOwner, repoName] = repo.trim().split('/')
   const pagesUrl = repoOwner && repoName ? `https://${repoOwner.toLowerCase()}.github.io/${repoName}/` : ''
   // Email sign-in carries no name, so fall back to the part before the @.
+  // null = no limit (administrator) or not loaded yet
+  const generationsLeft = session ? profile?.generations_left ?? null : null
   const userName = session ? session.user.name || session.user.email.split('@')[0] : ''
 
   useEffect(() => {
@@ -166,7 +168,7 @@ function App() {
           {session && pagesUrl && (
             <>
               <br />
-              Browse site <a href={pagesUrl} target="_blank" rel="noreferrer">{pagesUrl}</a>
+              Browse site <a className="site-link" href={pagesUrl} target="_blank" rel="noreferrer">{pagesUrl}</a>
             </>
           )}
         </h1>
@@ -298,9 +300,16 @@ function App() {
               : "Describe the site, e.g.'a landing page for a coffee shop with a menu and opening hours'"
           }
         />
-        <button type="submit" disabled={loading || !session || !prompt.trim()}>
+        <button type="submit" disabled={loading || !session || !prompt.trim() || generationsLeft === 0}>
           {loading ? 'Generating…' : session ? 'Generate' : 'Sign in to generate'}
         </button>
+        {generationsLeft !== null && (
+          <p className="usage">
+            {generationsLeft === 0
+              ? `You have used all ${profile.generation_limit} of your generations.`
+              : `Each user can run ${profile.generation_limit} generations. You have ${generationsLeft} left.`}
+          </p>
+        )}
       </form>
       {error && <p className="error">{error}</p>}
       {result?.github_url && (
@@ -316,8 +325,18 @@ function App() {
           {result.usage.cost_usd.toFixed(4)} USD ({result.usage.model})
         </p>
       )}
-      {result?.email_sent_to && <p className="usage">A summary was emailed to {result.email_sent_to}.</p>}
-      {result?.email_error && <p className="usage">No email was sent: {result.email_error}</p>}
+      {result?.email_sent_to && (
+        <p className="usage">
+          A summary was emailed to {result.email_sent_to}. Mail is sent by{' '}
+          <a href="https://resend.com" target="_blank" rel="noreferrer">https://resend.com</a>.
+        </p>
+      )}
+      {result?.email_error && (
+        <p className="usage">
+          No email was sent: {result.email_error}. Mail is sent by{' '}
+          <a href="https://resend.com" target="_blank" rel="noreferrer">https://resend.com</a>.
+        </p>
+      )}
       {result?.pages_error && <p className="error">{result.pages_error}</p>}
       {result?.github_error && <p className="error">Not saved to GitHub: {result.github_error}</p>}
       {result?.pages_url && (

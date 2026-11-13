@@ -165,6 +165,8 @@ def _user(user, gens: list) -> dict:
         "last_login_at": user.last_login_at.isoformat(),
         "total_cost_usd": round(sum(g.cost_usd for g in gens), 6),
         "generation_count": len(gens),
+        # Only generations that reached Claude count towards the user's limit.
+        "generations_used": sum(1 for g in gens if g.cost_usd > 0),
         "generations": [_generation(g) for g in gens[:RECENT_GENERATIONS]],
     }
 

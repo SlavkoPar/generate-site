@@ -2,7 +2,7 @@ import anthropic
 import requests
 from flask import current_app, g, jsonify, request
 
-from services import db, github_store, mailer
+from services import auth, db, github_store, mailer
 from services.auth import require_login
 from services.claude import GenerationRefused, MissingCredentials, get_usage, reset_usage
 from services.code_generator import generate_code
@@ -127,6 +127,9 @@ def generate_site_route():
     history, err = _read_history(body)
     if err:
         return err
+
+    if auth.generations_left(g.user) == 0:
+        return jsonify(error=f"You have used all {auth.GENERATION_LIMIT} of your generations."), 403
 
     email = g.user["email"]
     stored_repo, stored_token = db.github_settings(email)
