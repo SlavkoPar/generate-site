@@ -21,6 +21,15 @@ export function Help({ repo, isDefaultRepo }) {
         </p>
       )}
 
+      <h3>Prepare the repo</h3>
+      <p>
+        Ensure that you have a README.md file in the repo, and set{' '}
+        <a href={`https://github.com/${repo}/settings/pages`} target="_blank" rel="noreferrer">
+          Settings &gt; Pages
+        </a>{' '}
+        &gt; Source to: GitHub Actions.
+      </p>
+
       <h3>Create or edit a token</h3>
       <ol>
         <li>
