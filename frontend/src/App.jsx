@@ -67,6 +67,12 @@ function App() {
     setSession(null)
     setProfile(null)
     setToken('')
+    // Nothing of this user may be left for the next one who signs in on this browser.
+    setRepo(DEFAULT_REPO)
+    setResult(null)
+    setConversation([])
+    setFolder('')
+    setError('')
   }, [])
 
   // The user's saved repo, whether a token is saved (never the token itself) and their costs.
@@ -76,7 +82,7 @@ function App() {
     if (!res.ok) return undefined
     const data = await res.json()
     setProfile(data)
-    if (applyRepo && data.github_repo) setRepo(data.github_repo)
+    if (applyRepo) setRepo(data.github_repo || DEFAULT_REPO)
     return data
   }, [signOut])
 
