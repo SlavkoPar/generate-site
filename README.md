@@ -58,7 +58,8 @@ registered users and their generations. It only appears when the administrator s
 with Google, because the email-only sign-in does not prove who is typing the address.
 
 Every other user may run 2 generations (`GENERATION_LIMIT` in `backend/services/auth.py`);
-administrators have no limit. Only generations that reached Claude are counted.
+administrators have no limit. Only generations that reached Claude are counted. In the Users
+tab an administrator can reset a user's count, which lets them run 2 more.
 
 ## How a generated site is published
 

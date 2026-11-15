@@ -7,6 +7,8 @@ const when = (iso) => new Date(iso).toLocaleString()
 export function Admin({ sessionToken }) {
   const [users, setUsers] = useState(null)
   const [error, setError] = useState('')
+  const [limit, setLimit] = useState(0)
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -14,13 +16,32 @@ export function Admin({ sessionToken }) {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || `Could not load users (${res.status})`)
-        if (!cancelled) setUsers(data.users)
+        if (cancelled) return
+        setUsers(data.users)
+        setLimit(data.generation_limit)
       })
       .catch((err) => !cancelled && setError(err.message))
     return () => {
       cancelled = true
     }
   }, [sessionToken])
+
+  async function resetGenerations(email) {
+    setNote('')
+    try {
+      const res = await fetch(`${API_URL}/api/admin/users/reset-generations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `Could not reset (${res.status})`)
+      setUsers(data.users)
+      setNote(`${email} can run ${data.generation_limit} generations again.`)
+    } catch (err) {
+      setNote(err.message)
+    }
+  }
 
   if (error) return <p className="error">{error}</p>
   if (!users) return <p className="usage">Loading users…</p>
@@ -34,6 +55,7 @@ export function Admin({ sessionToken }) {
         {users.length} registered user{users.length === 1 ? '' : 's'}, {totalGenerations} generation
         {totalGenerations === 1 ? '' : 's'}, ${totalCost.toFixed(4)} Claude cost in total
       </p>
+      {note && <p className="admin-summary">{note}</p>}
       {users.map((u) => (
         <details key={u.email}>
           <summary>
@@ -46,6 +68,17 @@ export function Admin({ sessionToken }) {
           <p className="admin-empty">
             Registered {when(u.created_at)} · repo: {u.github_repo || 'default'} · token saved:{' '}
             {u.has_github_token ? 'yes' : 'no'}
+          </p>
+          <p className="admin-empty">
+            Used {u.generations_used} of {limit} allowed generations.{' '}
+            <button
+              type="button"
+              className="link-btn"
+              disabled={u.generations_used === 0}
+              onClick={() => resetGenerations(u.email)}
+            >
+              Reset
+            </button>
           </p>
           {u.generations.length === 0 ? (
             <p className="admin-empty">No generations yet.</p>

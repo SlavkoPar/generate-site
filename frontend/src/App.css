@@ -267,6 +267,7 @@ form select, form button, .field input { font-size: 13px; }
 .signin-email button { flex: 0 0 auto; white-space: nowrap; }
 .signin .error { margin: 8px 0 0; font-size: 13px; }
 .account { margin: 0; font-size: 13px; text-align: left; }
+.link-btn:disabled { opacity: .5; cursor: default; text-decoration: none; }
 .link-btn { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
 
 /* background colors */

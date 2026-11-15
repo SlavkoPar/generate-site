@@ -29,7 +29,23 @@ def _profile() -> dict:
 def admin_users():
     if not auth.is_admin(g.user):
         return jsonify(error="Only the administrator can see this"), 403
-    return jsonify(users=db.all_users())
+    return _users()
+
+
+def _users():
+    return jsonify(users=db.all_users(), generation_limit=auth.GENERATION_LIMIT)
+
+
+@api_bp.route("/admin/users/reset-generations", methods=["POST"])
+@require_login
+def admin_reset_generations():
+    """Let a user run their full number of generations again."""
+    if not auth.is_admin(g.user):
+        return jsonify(error="Only the administrator can do this"), 403
+    email = (request.get_json(silent=True) or {}).get("email")
+    if not isinstance(email, str) or not db.reset_generations(email):
+        return jsonify(error="No such user"), 404
+    return _users()
 
 
 @api_bp.route("/profile", methods=["PUT"])

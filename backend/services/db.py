@@ -10,7 +10,7 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import (Column, DateTime, Float, ForeignKey, Integer, MetaData, String, Table, Text,
-                        create_engine, insert, select, update)
+                        create_engine, func, insert, inspect, select, text, update)
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 RECENT_GENERATIONS = 20
@@ -38,6 +38,8 @@ users = Table(
     Column("github_token_enc", Text, nullable=False, default=""),  # encrypted, never sent to the client
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("last_login_at", DateTime(timezone=True), nullable=False),
+    # Generations up to this id no longer count towards the user's limit (set by an admin reset).
+    Column("limit_reset_id", Integer, nullable=False, default=0, server_default="0"),
 )
 
 generations = Table(
@@ -62,6 +64,14 @@ try:
 except SQLAlchemyError:
     # Two gunicorn workers can race to create the tables on the first boot; the loser retries.
     metadata.create_all(engine)
+
+# create_all does not add columns to a table that already exists.
+if "limit_reset_id" not in {c["name"] for c in inspect(engine).get_columns("users")}:
+    try:
+        with engine.begin() as _conn:
+            _conn.execute(text("ALTER TABLE users ADD COLUMN limit_reset_id INTEGER NOT NULL DEFAULT 0"))
+    except SQLAlchemyError:
+        pass  # the other gunicorn worker added it first
 
 
 def _now() -> datetime:
@@ -166,7 +176,7 @@ def _user(user, gens: list) -> dict:
         "total_cost_usd": round(sum(g.cost_usd for g in gens), 6),
         "generation_count": len(gens),
         # Only generations that reached Claude count towards the user's limit.
-        "generations_used": sum(1 for g in gens if g.cost_usd > 0),
+        "generations_used": sum(1 for g in gens if g.cost_usd > 0 and g.id > user.limit_reset_id),
         "generations": [_generation(g) for g in gens[:RECENT_GENERATIONS]],
     }
 
@@ -179,6 +189,18 @@ def profile(email: str) -> dict:
             select(generations).where(generations.c.user_id == user.id)
             .order_by(generations.c.id.desc())).all()
     return _user(user, gens)
+
+
+def reset_generations(email: str) -> bool:
+    """Give the user their full allowance again; their history and costs are kept."""
+    with engine.begin() as conn:
+        user_id = conn.execute(select(users.c.id).where(users.c.email == email)).scalar()
+        if user_id is None:
+            return False
+        last = conn.execute(
+            select(func.max(generations.c.id)).where(generations.c.user_id == user_id)).scalar() or 0
+        conn.execute(update(users).where(users.c.id == user_id).values(limit_reset_id=last))
+    return True
 
 
 def all_users() -> list[dict]:
