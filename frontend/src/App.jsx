@@ -41,6 +41,7 @@ function App() {
   const [page, setPage] = useState(pageFromHash)
   const [profile, setProfile] = useState(null)
   const [profileNote, setProfileNote] = useState('')
+  const [expired, setExpired] = useState(false) // the session timed out, as opposed to a sign-out
   const isDefaultRepo = repo.trim() === DEFAULT_REPO
   // Where GitHub Pages serves the repo: https://<owner>.github.io/<name>/
   const [repoOwner, repoName] = repo.trim().split('/')
@@ -60,6 +61,7 @@ function App() {
     saveSession(next)
     setSession(next)
     setError('')
+    setExpired(false)
   }, [])
 
   const signOut = useCallback(() => {
@@ -85,6 +87,17 @@ function App() {
     if (applyRepo) setRepo(data.github_repo || DEFAULT_REPO)
     return data
   }, [signOut])
+
+  // End the session in the page when it ends on the server, 60 minutes after sign-in.
+  const expiresAt = session?.expires_at
+  useEffect(() => {
+    if (!expiresAt) return undefined
+    const timer = setTimeout(() => {
+      signOut()
+      setExpired(true)
+    }, Math.max(0, expiresAt * 1000 - Date.now()))
+    return () => clearTimeout(timer)
+  }, [expiresAt, signOut])
 
   const sessionToken = session?.token
   useEffect(() => {
@@ -282,7 +295,7 @@ function App() {
         <Help repo={repo.trim()} isDefaultRepo={isDefaultRepo} />
       ) : (
         <>
-      {!session && <SignIn onSignIn={signIn} />}
+      {!session && <SignIn onSignIn={signIn} expired={expired} />}
       {!session && (
         <p className="usage">
           Visit generated site at:{' '}

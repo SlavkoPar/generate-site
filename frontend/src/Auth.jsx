@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 
 export const API_URL = import.meta.env.VITE_API_URL ?? ''
 const SESSION_KEY = 'generate-site:session'
+const SESSION_MINUTES = 60 // the server's limit (SESSION_MINUTES in backend/services/auth.py)
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
 
 export function loadSession() {
   try {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null')
-    return session?.token && session?.user?.email ? session : null
+    if (!session?.token || !session?.user?.email) return null
+    // Sessions expire on the server; one without an expiry is from before that and is no longer valid.
+    return session.expires_at * 1000 > Date.now() ? session : null
   } catch {
     return null
   }
@@ -45,7 +48,7 @@ function loadGoogleScript() {
   })
 }
 
-export function SignIn({ onSignIn }) {
+export function SignIn({ onSignIn, expired }) {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -118,6 +121,10 @@ export function SignIn({ onSignIn }) {
         </form>
       </div>
       {error && <p className="error">{error}</p>}
+      <p className="signin-note">
+        {expired ? 'Your session has ended. ' : ''}No password is needed: use Google or just your email
+        address. A session lasts {SESSION_MINUTES} minutes; after that you sign in again.
+      </p>
     </div>
   )
 }

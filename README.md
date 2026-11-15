@@ -27,7 +27,9 @@ not prove they own the address.
 The API needs two environment variables:
 
 - `SECRET_KEY`: signs the sessions. Render generates it from `render.yaml`; locally,
-  put any long random string in `backend/.env`.
+  put any long random string in `backend/.env`. A session is a JWT issued with Authlib
+  and ends 60 minutes after sign-in (`SESSION_MINUTES` in `backend/services/auth.py`);
+  the user then signs in again.
 - `GOOGLE_CLIENT_ID`: enables the Google button. Create it in the Google Cloud Console
   under **APIs & Services > Credentials > Create credentials > OAuth client ID**, type
   **Web application**, and add the UI's address to **Authorized JavaScript origins**

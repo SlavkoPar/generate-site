@@ -1,14 +1,17 @@
 import os
 import re
+import time
 from functools import wraps
 
 import requests
+from authlib.jose import JsonWebToken
+from authlib.jose.errors import JoseError
 from flask import g, jsonify, request
-from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 from . import db
 
-SESSION_MAX_AGE = 30 * 24 * 3600  # seconds
+SESSION_MINUTES = 60  # a session ends this long after sign-in; the user then signs in again
+_jwt = JsonWebToken(["HS256"])  # only this algorithm is accepted when a token is read
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _GOOGLE_TOKENINFO = "https://oauth2.googleapis.com/tokeninfo"
 
@@ -23,27 +26,35 @@ def google_client_id() -> str:
     return os.environ.get("GOOGLE_CLIENT_ID", "").strip()
 
 
-def _serializer() -> URLSafeTimedSerializer:
+def _secret() -> str:
     # Read on each call rather than at import: every gunicorn worker must sign with the same
     # key, so there is no random fallback (a token from one worker would fail on the other).
     secret = os.environ.get("SECRET_KEY", "").strip()
     if not secret:
         raise AuthError("Server has no SECRET_KEY configured", 500)
-    return URLSafeTimedSerializer(secret, salt="generate-site-session")
+    return secret
 
 
 def issue_session(email: str, provider: str, name: str = "") -> dict:
+    """Sign the user in: a JWT (HS256, via Authlib) that expires after SESSION_MINUTES."""
     user = {"email": email, "provider": provider, "name": name}
     db.ensure_user(email, name, provider, login=True)
-    return {"token": _serializer().dumps(user), "user": user}
+    now = int(time.time())
+    expires_at = now + SESSION_MINUTES * 60
+    token = _jwt.encode({"alg": "HS256"}, {**user, "iat": now, "exp": expires_at}, _secret())
+    return {"token": token.decode(), "user": user, "expires_at": expires_at,
+            "session_minutes": SESSION_MINUTES}
 
 
 def read_session(token: str) -> dict | None:
     try:
-        user = _serializer().loads(token, max_age=SESSION_MAX_AGE)
-    except BadSignature:  # also covers an expired token
+        claims = _jwt.decode(token, _secret(), claims_options={"exp": {"essential": True}})
+        claims.validate()  # rejects an expired token
+    except (JoseError, ValueError):
         return None
-    return user if isinstance(user, dict) and user.get("email") else None
+    if not isinstance(claims.get("email"), str) or not claims["email"]:
+        return None
+    return {"email": claims["email"], "provider": claims.get("provider", ""), "name": claims.get("name", "")}
 
 
 def login_with_email(email: str) -> dict:
