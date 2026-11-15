@@ -45,11 +45,15 @@ tokens unreadable; users then have to enter them again.
   it elsewhere. On Render the service's own filesystem is wiped on every deploy and
   restart, so attach a persistent disk (paid plans) and point `SQLITE_PATH` at a file on
   it, for example `/var/data/data.db`; otherwise users, tokens and costs are lost.
-- `RESEND_API_KEY`: API key from https://resend.com, used to email the user a summary
-  after each generation. Without it no email is sent and the result says so.
-- `MAIL_FROM`: sender address on a domain verified in Resend, for example
-  `Generate Site <noreply@example.com>`. Without it Resend's test sender is used, which
-  only delivers to the Resend account owner's own address.
+- A summary is emailed to the user after each generation, over SMTP. Without `SMTP_HOST`
+  no email is sent and the result says so.
+  - `SMTP_HOST`, `SMTP_PORT`: the mail server, for example `smtp.gmail.com` and `587`.
+    Port 587 (the default) uses STARTTLS, port 465 implicit TLS.
+  - `SMTP_USER`, `SMTP_PASSWORD`: the login. For Gmail the password is an app password
+    (https://myaccount.google.com/apppasswords), not the account password.
+  - `MAIL_FROM`: sender, for example `Generate Site <you@gmail.com>`; defaults to `SMTP_USER`.
+  - Render's free web services block outbound SMTP (ports 25, 465 and 587), so there the
+    email fails with a timeout; it needs a paid instance.
 
 ## Administrator
 

@@ -1,27 +1,47 @@
-"""Emails the user a summary of each generation, through the Resend HTTP API.
+"""Emails the user a summary of each generation, over SMTP.
 
-An HTTP API rather than SMTP because Render's free web services block outbound SMTP ports.
+Settings: SMTP_HOST, SMTP_PORT (587 by default; 465 uses implicit TLS, anything else STARTTLS),
+SMTP_USER, SMTP_PASSWORD and MAIL_FROM (defaults to SMTP_USER).
 """
 import os
+import smtplib
+import ssl
+from email.message import EmailMessage
 
-import requests
+_TIMEOUT = 10  # seconds; a host that blocks outbound SMTP must not hold up the response for long
 
-_RESEND_URL = "https://api.resend.com/emails"
+
+def _env(name: str) -> str:
+    return os.environ.get(name, "").strip()
 
 
 def is_configured() -> bool:
-    return bool(os.environ.get("RESEND_API_KEY", "").strip())
+    return bool(_env("SMTP_HOST") and _sender())
 
 
 def _sender() -> str:
-    # Resend's shared test sender; it only delivers to the Resend account owner's own address.
-    return os.environ.get("MAIL_FROM", "").strip() or "Generate Site <onboarding@resend.dev>"
+    return _env("MAIL_FROM") or _env("SMTP_USER")
+
+
+def _send(message: EmailMessage) -> None:
+    host, port = _env("SMTP_HOST"), int(_env("SMTP_PORT") or 587)
+    context = ssl.create_default_context()
+    if port == 465:
+        server = smtplib.SMTP_SSL(host, port, timeout=_TIMEOUT, context=context)
+    else:
+        server = smtplib.SMTP(host, port, timeout=_TIMEOUT)
+    with server:
+        if port != 465:
+            server.starttls(context=context)
+        if _env("SMTP_USER"):
+            server.login(_env("SMTP_USER"), _env("SMTP_PASSWORD"))
+        server.send_message(message)
 
 
 def send_generation_email(to: str, prompt: str, result: dict, usage: dict | None, error: str = "") -> str | None:
     """Send the summary. Returns None on success, otherwise why it was not sent."""
     if not is_configured():
-        return "Email is not configured on the server (RESEND_API_KEY)"
+        return "Email is not configured on the server (SMTP_HOST and MAIL_FROM or SMTP_USER)"
 
     lines = ["Your request:", "", prompt, ""]
     if error:
@@ -39,20 +59,13 @@ def send_generation_email(to: str, prompt: str, result: dict, usage: dict | None
         lines += ["", f"Claude usage: {usage['input_tokens']:,} input + {usage['output_tokens']:,} output "
                       f"tokens, about ${usage['cost_usd']:.4f} USD ({usage['model']})"]
 
-    subject = "Your site generation failed" if error else "Your generated site"
+    message = EmailMessage()
+    message["Subject"] = "Your site generation failed" if error else "Your generated site"
+    message["From"] = _sender()
+    message["To"] = to
+    message.set_content("\n".join(lines))
     try:
-        resp = requests.post(
-            _RESEND_URL,
-            headers={"Authorization": f"Bearer {os.environ['RESEND_API_KEY'].strip()}"},
-            json={"from": _sender(), "to": [to], "subject": subject, "text": "\n".join(lines)},
-            timeout=15,
-        )
-    except requests.RequestException as e:
-        return f"Could not reach the email service: {e}"
-    if resp.status_code not in (200, 201):
-        try:
-            detail = resp.json().get("message", "")
-        except ValueError:
-            detail = ""
-        return f"The email service returned {resp.status_code}: {detail}".rstrip(": ")
+        _send(message)
+    except (smtplib.SMTPException, OSError, ValueError) as e:
+        return f"Could not send the email over SMTP: {e}"
     return None

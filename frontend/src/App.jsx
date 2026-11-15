@@ -334,18 +334,8 @@ function App() {
           {result.usage.cost_usd.toFixed(4)} USD ({result.usage.model})
         </p>
       )}
-      {result?.email_sent_to && (
-        <p className="usage">
-          A summary was emailed to {result.email_sent_to}. Mail is sent by{' '}
-          <a href="https://resend.com" target="_blank" rel="noreferrer">https://resend.com</a>.
-        </p>
-      )}
-      {result?.email_error && (
-        <p className="usage">
-          No email was sent: {result.email_error}. Mail is sent by{' '}
-          <a href="https://resend.com" target="_blank" rel="noreferrer">https://resend.com</a>.
-        </p>
-      )}
+      {result?.email_sent_to && <p className="usage">A summary was emailed to {result.email_sent_to}.</p>}
+      {result?.email_error && <p className="usage">No email was sent: {result.email_error}</p>}
       {result?.pages_error && <p className="error">{result.pages_error}</p>}
       {result?.github_error && <p className="error">Not saved to GitHub: {result.github_error}</p>}
       {result?.pages_url && (

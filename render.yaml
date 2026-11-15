@@ -23,10 +23,17 @@ services:
       # Users, their GitHub tokens (encrypted with SECRET_KEY) and generation costs
       # stored in SQLite. Without a persistent disk the file is lost on every deploy or restart:
       # attach a disk (paid plans) and set SQLITE_PATH to a file on it, e.g. /var/data/data.db
-      # Resend API key for the email sent after each generation (https://resend.com)
-      - key: RESEND_API_KEY
+      # SMTP server for the email sent after each generation, e.g. smtp.gmail.com / 587.
+      # Free web services block outbound SMTP ports; this needs a paid instance.
+      - key: SMTP_HOST
         sync: false
-      # Sender address on a domain verified in Resend, e.g. "Generate Site <noreply@example.com>"
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      # Sender, e.g. "Generate Site <you@gmail.com>"; defaults to SMTP_USER
       - key: MAIL_FROM
         sync: false
       # Comma-separated addresses that see the Users tab (only when signed in with Google)

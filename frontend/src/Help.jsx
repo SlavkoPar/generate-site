@@ -86,9 +86,7 @@ export function Help({ repo, isDefaultRepo }) {
       <h3>Emails</h3>
       <p>
         After each generation a summary (request, links and Claude cost) is emailed to the address
-        you signed in with. Emails are sent by{' '}
-        <a href="https://resend.com/" target="_blank" rel="noreferrer">https://resend.com/</a>. If
-        none arrives, check your spam folder; the result on the main page also says whether the
+        you signed in with. If none arrives, check your spam folder; the result on the main page also says whether the
         email was sent.
       </p>
     </article>
