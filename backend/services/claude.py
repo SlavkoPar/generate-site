@@ -4,7 +4,9 @@ import json
 import anthropic
 
 MODEL = "claude-fable-5-2"
-MAX_OUTPUT_TOKENS = 64000
+# The model's ceiling. Thinking is always on and is counted against it too, so a lower cap
+# can cut a large site off even though the files themselves would have fitted.
+MAX_OUTPUT_TOKENS = 128000
 
 # Reads ANTHROPIC_API_KEY (or an `ant auth login` profile) from the environment.
 _client = anthropic.Anthropic()
@@ -90,7 +92,8 @@ def ask_json(system: str, prompt: str, schema: dict, history: list[dict] | None 
     if response.stop_reason == "refusal":
         raise GenerationRefused("The model declined this request.")
     if response.stop_reason == "max_tokens":
-        raise RuntimeError("Output was cut off even at the maximum length; try a narrower request.")
+        raise RuntimeError("The site is too large to return in one answer; try a narrower request, "
+                           "or untick \"Continue the previous site\" to start a smaller one.")
 
     text = next(b.text for b in response.content if b.type == "text")
     return json.loads(text)
