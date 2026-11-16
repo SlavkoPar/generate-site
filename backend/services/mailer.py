@@ -50,9 +50,11 @@ def send_generation_email(to: str, prompt: str, result: dict, usage: dict | None
         lines.append(f"Source on GitHub: {result['github_url']}")
     if result.get("pages_url"):
         lines.append(f"Live site (once the build finishes): {result['pages_url']}")
+    if result.get("render_url"):
+        lines.append(f"Live site on Render (once the build finishes): {result['render_url']}")
     if result.get("actions_url"):
         lines.append(f"Build progress: {result['actions_url']}")
-    for key in ("github_error", "pages_error"):
+    for key in ("github_error", "pages_error", "render_error"):
         if result.get(key):
             lines.append(f"Problem: {result[key]}")
     if usage:

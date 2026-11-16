@@ -230,13 +230,15 @@ def _commit(repo_full: str, token: str | None, message: str, files: dict[str, st
 
 
 def store_site(prompt: str, files: list[dict], repo: str | None = None,
-               token: str | None = None, folder: str | None = None) -> dict:
+               token: str | None = None, folder: str | None = None, pages: bool = True) -> dict:
     """Commit a Vite project under sites/<timestamp>-<slug>/ and trigger its build.
 
     `repo` ("owner/name") overrides the GITHUB_REPO default. Pass the `folder` returned by
     an earlier call to overwrite that site (a refinement) instead of creating a new one.
     The commit also updates sites/LATEST, which starts the workflow that builds the project
     and deploys it to GitHub Pages. Returns the folder, Pages and Actions URLs.
+    With `pages=False` only the source is committed (it is published elsewhere): no pointer,
+    no workflow, no Pages.
     """
     repo_full = repo or REPO
     if not _REPO_RE.match(repo_full):
@@ -258,6 +260,13 @@ def store_site(prompt: str, files: list[dict], repo: str | None = None,
 
     tree = {f"{folder}/{f['path']}": f["content"] for f in files}
     tree[f"{folder}/PROMPT.md"] = prompt_log
+    result = {
+        "github_url": f"https://github.com/{repo_full}/tree/{BRANCH}/{folder}",
+        "folder": folder,
+    }
+    if not pages:
+        _commit(repo_full, token, message, tree, folder if refine else None)
+        return result
     # The timestamp makes the pointer change on a refinement too, so the workflow runs again.
     tree[LATEST_PATH] = f"{folder}\n{stamp}\n"
     # Writing a workflow needs an extra token permission, so only do it when it is not there yet.
@@ -280,10 +289,6 @@ def store_site(prompt: str, files: list[dict], repo: str | None = None,
         _commit(repo_full, token, message, tree, replace_folder)
         workflow_blocked = True
 
-    result = {
-        "github_url": f"https://github.com/{repo_full}/tree/{BRANCH}/{folder}",
-        "folder": folder,
-    }
     if workflow_blocked:
         result["pages_error"] = (
             f"The site source is saved, but it was not built or published: the GitHub token may "

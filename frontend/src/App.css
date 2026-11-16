@@ -246,6 +246,12 @@ form select, form button, .field input { font-size: 13px; }
 .admin a { color: var(--accent); }
 .admin-empty { margin: 0; padding: 0 12px 10px; opacity: .7; }
 
+/* publish target */
+.target { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; margin: 0; padding: 6px 12px; border: 1px solid rgba(127,127,127,.3); border-radius: 8px; font-size: 13px; text-align: left; }
+.target legend { padding: 0 4px; font-size: 12px; opacity: .75; }
+.target label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.target-note { flex-basis: 100%; font-size: 12px; opacity: .7; }
+
 /* help page */
 .help { text-align: left; font-size: 14px; line-height: 1.55; }
 .help h2 { margin: 10px 0 8px; font-size: 18px; }

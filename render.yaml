@@ -23,6 +23,9 @@ services:
       # Users, their GitHub tokens (encrypted with SECRET_KEY) and generation costs
       # stored in SQLite. Without a persistent disk the file is lost on every deploy or restart:
       # attach a disk (paid plans) and set SQLITE_PATH to a file on it, e.g. /var/data/data.db
+      # Render API key, for the "Render static site" publishing mode (Account Settings > API Keys)
+      - key: RENDER_API_KEY
+        sync: false
       # SMTP server for the email sent after each generation, e.g. smtp.gmail.com / 587.
       # Free web services block outbound SMTP ports; this needs a paid instance.
       - key: SMTP_HOST

@@ -143,7 +143,7 @@ def record_generation(email: str, prompt: str, repo: str, result: dict | None, u
             folder=result.get("folder", ""), model=usage.get("model", ""),
             input_tokens=usage.get("input_tokens", 0), output_tokens=usage.get("output_tokens", 0),
             cost_usd=usage.get("cost_usd", 0.0),
-            github_url=result.get("github_url", ""), pages_url=result.get("pages_url", ""),
+            github_url=result.get("github_url", ""), pages_url=result.get("pages_url") or result.get("render_url", ""),
             error=error or result.get("github_error", ""),
         ))
 

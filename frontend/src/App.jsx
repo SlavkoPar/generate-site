@@ -8,6 +8,15 @@ import { Help } from './Help'
 const PROMPT_KEY = 'generate-site:prompt-history'
 const MAX_HISTORY = 20
 const DEFAULT_REPO = 'SlavkoPar/AIGeneratedSite'
+const TARGET_KEY = 'generate-site:target'
+
+function loadTarget() {
+  try {
+    return localStorage.getItem(TARGET_KEY) === 'render' ? 'render' : 'github'
+  } catch {
+    return 'github'
+  }
+}
 
 // The built-in requests are only the starting list; once the user sends one, their own
 // requests are kept (newest first) and the built-ins age out like any other entry.
@@ -35,6 +44,7 @@ function App() {
   const [folder, setFolder] = useState('') // GitHub folder of that site, overwritten on refinement
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [target, setTarget] = useState(loadTarget) // where the site is published: 'github' | 'render'
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef(null)
   const [session, setSession] = useState(loadSession)
@@ -153,7 +163,7 @@ function App() {
       const res = await fetch(`${API_URL}/api/generate-site`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
-        body: JSON.stringify({ prompt, repo: repo.trim(), token: isDefaultRepo ? '' : token.trim(), history: conversation, folder }),
+        body: JSON.stringify({ prompt, repo: repo.trim(), token: isDefaultRepo ? '' : token.trim(), history: conversation, folder, target }),
       })
       const text = await res.text()
       let data
@@ -184,7 +194,7 @@ function App() {
           Generate Project (Vite + React + TypeScript).
           <br />
           Push it to the github repo{session && <>: <span className="repo">{repo.trim()}</span></>}.
-          {session && pagesUrl && (
+          {session && pagesUrl && target === 'github' && (
             <>
               <br />
               Browse site <a className="site-link" href={pagesUrl} target="_blank" rel="noreferrer">{pagesUrl}</a>
@@ -328,6 +338,36 @@ function App() {
               : "Describe the site, e.g.'a landing page for a coffee shop with a menu and opening hours'"
           }
         />
+        <fieldset className="target">
+          <legend>Publish to</legend>
+          {[
+            ['github', 'GitHub Pages'],
+            ['render', 'Render static site'],
+          ].map(([value, label]) => (
+            <label key={value}>
+              <input
+                type="radio"
+                name="target"
+                value={value}
+                checked={target === value}
+                onChange={() => {
+                  setTarget(value)
+                  try {
+                    localStorage.setItem(TARGET_KEY, value)
+                  } catch {
+                    // storage unavailable: the choice lasts until the page is reloaded
+                  }
+                }}
+              />
+              {label}
+            </label>
+          ))}
+          <span className="target-note">
+            {target === 'render'
+              ? 'The source is saved to the GitHub repo and Render builds the site from it.'
+              : 'The source is saved to the GitHub repo and GitHub Actions deploys it to Pages.'}
+          </span>
+        </fieldset>
         <button type="submit" disabled={loading || !session || !prompt.trim() || generationsLeft === 0}>
           {loading ? 'Generating…' : session ? 'Generate' : 'Sign in to generate'}
         </button>
@@ -361,6 +401,18 @@ function App() {
         <p>
           Live on GitHub Pages once the build finishes (a minute or two):{' '}
           <a href={result.pages_url} target="_blank" rel="noreferrer">{result.pages_url}</a>
+        </p>
+      )}
+      {result?.render_error && <p className="error">Not published on Render: {result.render_error}</p>}
+      {result?.render_url && (
+        <p>
+          Live on Render once the build finishes (a minute or two):{' '}
+          <a href={result.render_url} target="_blank" rel="noreferrer">{result.render_url}</a>
+          {result.render_dashboard_url && (
+            <>
+              {' '}(<a href={result.render_dashboard_url} target="_blank" rel="noreferrer">build progress</a>)
+            </>
+          )}
         </p>
       )}
       {result?.actions_url && (

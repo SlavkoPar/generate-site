@@ -2,7 +2,7 @@ import anthropic
 import requests
 from flask import current_app, g, jsonify, request
 
-from services import auth, db, github_store, mailer
+from services import auth, db, github_store, mailer, render_store
 from services.auth import require_login
 from services.claude import GenerationRefused, MissingCredentials, get_usage, reset_usage
 from services.code_generator import generate_code
@@ -139,6 +139,12 @@ def generate_site_route():
     if not token and repo and repo != github_store.REPO:
         token = stored_token or None
     folder = (body.get("folder") or "").strip() or None
+    # Where the site is published: GitHub Pages, or a Render static site built from the repo.
+    target = body.get("target") or "github"
+    if target not in ("github", "render"):
+        return jsonify(error="'target' must be 'github' or 'render'"), 400
+    if target == "render" and not render_store.is_configured():
+        return jsonify(error="Render is not configured on the server (RENDER_API_KEY)"), 500
 
     def run():
         files = generate_site(prompt, history)
@@ -146,7 +152,14 @@ def generate_site_route():
             "files": [f["path"] for f in files],
             "history": extend_history(history, prompt, files),
         }
-        _store(result, lambda: github_store.store_site(prompt, files, repo, token, folder), token)
+        _store(result, lambda: github_store.store_site(
+            prompt, files, repo, token, folder, pages=target == "github"), token)
+        if target == "render" and result.get("folder"):  # Render builds from the committed source
+            try:
+                result.update(render_store.publish(
+                    repo or github_store.REPO, github_store.BRANCH, result["folder"]))
+            except (render_store.RenderStoreError, requests.RequestException) as e:
+                result["render_error"] = str(e)
         return result
 
     def done(result, usage, error):
