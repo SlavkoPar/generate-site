@@ -192,9 +192,12 @@ function App() {
     <section id="center">
       <div className="title-row">
         <h1>
-          Generate Project (Vite + React + TypeScript).
+          {target === 'render'
+            ? 'Generate source code (HTML + CSS + JavaScript).'
+            : 'Generate Project (Vite + React + TypeScript).'}
           <br />
-          Push it to the github repo{session && <>: <span className="repo">{repo.trim()}</span></>}.
+          Push it to the github repo{session && <>: <span className="repo">{repo.trim()}</span></>}
+          {target === 'render' ? ' and publish it to Render.' : '.'}
           {session && pagesUrl && target === 'github' && (
             <>
               <br />
@@ -271,6 +274,12 @@ function App() {
                       checked={target === value}
                       onChange={() => {
                         setTarget(value)
+                  // The two modes produce different kinds of project, so a site made in one
+                  // cannot be refined in the other: the next request starts a new site.
+                  if (value !== target) {
+                    setConversation([])
+                    setFolder('')
+                  }
                         try {
                           localStorage.setItem(TARGET_KEY, value)
                         } catch {
@@ -283,8 +292,8 @@ function App() {
                 ))}
                 <span className="target-note">
                   {target === 'render'
-                    ? 'The source is saved to the GitHub repo and Render builds the site from it.'
-                    : 'The source is saved to the GitHub repo and GitHub Actions deploys it to Pages.'}
+                    ? 'Plain HTML, CSS and JavaScript, saved to the GitHub repo and served by Render.'
+                    : 'A Vite + React + TypeScript project, saved to the GitHub repo and deployed to Pages.'}
                 </span>
               </fieldset>
               {session && (

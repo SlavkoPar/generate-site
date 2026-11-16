@@ -75,8 +75,9 @@ The form has a **Publish to** choice:
   workflow builds it and deploys it to Pages, as described below.
 - **Render static site**: the source is committed to the same repo (Render cannot take
   source any other way; a static site is always built from a Git repository), then the
-  Render API creates a static site that builds that folder (`npm install && npm run build`,
-  publishing `dist`). When the build finishes the page shows a preview of the site. Each new site is a new Render service; refining a site redeploys its
+  Render API creates a static site that serves that folder as it is. In this mode the site
+  is generated as plain source (HTML, CSS and JavaScript only, no Vite, React or TypeScript),
+  so there is no build step. When the build finishes the page shows a preview of the site. Each new site is a new Render service; refining a site redeploys its
   service. Needs `RENDER_API_KEY` (Render dashboard > Account Settings > API Keys), and
   optionally `RENDER_OWNER_ID` to pick the workspace. Render must be able to read the repo:
   it is public, or the Render account's GitHub connection has access to it.

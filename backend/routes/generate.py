@@ -159,7 +159,8 @@ def generate_site_route():
         return jsonify(error="Render is not configured on the server (RENDER_API_KEY)"), 500
 
     def run():
-        files = generate_site(prompt, history)
+        # Render serves plain source as it is; GitHub Pages gets a Vite project that is built.
+        files = generate_site(prompt, history, plain=target == "render")
         result = {
             "files": [f["path"] for f in files],
             "history": extend_history(history, prompt, files),

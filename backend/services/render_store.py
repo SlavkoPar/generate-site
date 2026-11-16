@@ -1,6 +1,6 @@
 """Publishes a generated site as a Render static site, through the Render API.
 
-Render has no API to upload source: a static site is always built from a Git repository. So
+Render has no API to upload source: a static site is always served from a Git repository. So
 the source is committed to GitHub first (github_store.store_site) and the static site created
 here builds the site's folder of that repo. Render must be able to read the repo: it is public,
 or the Render account's GitHub connection has access to it.
@@ -14,8 +14,9 @@ import re
 import requests
 
 API = "https://api.render.com/v1"
-BUILD_COMMAND = "npm install && npm run build"
-PUBLISH_PATH = "dist"
+# The site is plain HTML, CSS and JavaScript: nothing to build, the folder itself is published.
+BUILD_COMMAND = ""
+PUBLISH_PATH = "."
 
 
 class RenderStoreError(Exception):

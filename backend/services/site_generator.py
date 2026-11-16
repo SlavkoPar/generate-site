@@ -33,6 +33,29 @@ to the project root and its full content, with no markdown fences. If the conver
 already contains a site, apply the user's new request to it, keep everything they did not \
 ask to change, and return the complete updated set of files."""
 
+# Render mode: plain source that is served exactly as returned, with no build step.
+PLAIN_SYSTEM_PROMPT = """\
+You are a web designer and front-end developer. Given a description, build a website as \
+plain source code: HTML, CSS and JavaScript only. There is no build step and nobody reviews \
+or edits the files before they ship: they are served by a static host exactly as you return \
+them, so the site has to work as it is.
+
+Rules:
+- index.html at the root is the entry page. Put styles in .css files and behaviour in .js \
+files that the pages load with relative URLs (for example `css/style.css`, `js/main.js`).
+- Write modern JavaScript that browsers run directly. No TypeScript, no JSX, no frameworks, \
+no npm packages, no package.json, and no bundler or other tooling.
+- Use relative URLs for every link and asset, so the site works from any folder. For several \
+pages, use separate .html files linked to each other.
+
+Do not return dotfiles, or binary files; use inline SVG or CSS for graphics. Do not load \
+external scripts or tracking.
+
+Make the site responsive, accessible and polished. Return every file with its path relative \
+to the site root and its full content, with no markdown fences. If the conversation already \
+contains a site, apply the user's new request to it, keep everything they did not ask to \
+change, and return the complete updated set of files."""
+
 OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -55,6 +78,9 @@ OUTPUT_SCHEMA = {
 
 ALLOWED_EXTENSIONS = {".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".svg", ".txt", ".md"}
 REQUIRED_FILES = ("index.html", "package.json", "vite.config.ts")
+# What a browser can load without a build; a .ts or .tsx file would be served but never run.
+PLAIN_EXTENSIONS = {".html", ".css", ".js", ".json", ".svg", ".txt", ".md"}
+PLAIN_FAVICON_PATH = "favicon.svg"  # no build: the file sits next to index.html
 MAX_FILES = 80
 MAX_HISTORY_MESSAGES = 6  # last 3 request/response turns
 MAX_FILE_BYTES = 500_000
@@ -70,14 +96,15 @@ _HEAD_END_RE = re.compile(r"</head>", re.I)
 _ICON_LINK = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
 
 
-def _add_favicon(files: dict[str, str]) -> None:
+def _add_favicon(files: dict[str, str], plain: bool = False) -> None:
     """Give the site the Vite logo as its icon, replacing any icon the model linked."""
-    files[FAVICON_PATH] = FAVICON_SVG
+    files[PLAIN_FAVICON_PATH if plain else FAVICON_PATH] = FAVICON_SVG
+    link = _ICON_LINK.replace("/favicon.svg", "favicon.svg") if plain else _ICON_LINK
     html = _EXISTING_ICON_RE.sub("", files["index.html"])
     if _HEAD_END_RE.search(html):
-        html = _HEAD_END_RE.sub(lambda m: "  " + _ICON_LINK + "\n" + m.group(0), html, count=1)
+        html = _HEAD_END_RE.sub(lambda m: "  " + link + "\n" + m.group(0), html, count=1)
     else:
-        html = _ICON_LINK + "\n" + html
+        html = link + "\n" + html
     files["index.html"] = html
 
 class InvalidSite(RuntimeError):
@@ -97,9 +124,10 @@ def _clean_path(path: str) -> str:
     return norm
 
 
-def generate_site(prompt: str, history: list[dict] | None = None) -> list[dict]:
-    """Return a validated list of {"path", "content"} files making up a Vite project."""
-    data = ask_json(SYSTEM_PROMPT, prompt, OUTPUT_SCHEMA, history)
+def generate_site(prompt: str, history: list[dict] | None = None, plain: bool = False) -> list[dict]:
+    """Return a validated list of {"path", "content"} files making up a Vite project, or with
+    `plain` a site of plain HTML, CSS and JavaScript that needs no build."""
+    data = ask_json(PLAIN_SYSTEM_PROMPT if plain else SYSTEM_PROMPT, prompt, OUTPUT_SCHEMA, history)
     if len(data["files"]) > MAX_FILES:
         # Dropping files would leave imports dangling and break the build.
         raise InvalidSite(f"Generated site has more than {MAX_FILES} files; try a narrower request")
@@ -109,16 +137,24 @@ def generate_site(prompt: str, history: list[dict] | None = None) -> list[dict]:
         if len(f["content"].encode("utf-8")) > MAX_FILE_BYTES:
             raise InvalidSite(f"{path} is too large")
         files[path] = f["content"]
-    missing = [p for p in REQUIRED_FILES if p not in files]
-    if missing:
-        raise InvalidSite(f"Generated site is not a Vite project, missing: {', '.join(missing)}")
-    _add_favicon(files)
+    if plain:
+        if "index.html" not in files:
+            raise InvalidSite("Generated site has no index.html")
+        needs_build = [p for p in files if posixpath.splitext(p)[1].lower() not in PLAIN_EXTENSIONS]
+        if needs_build:
+            raise InvalidSite(f"Generated site has files a browser cannot run without a build: "
+                              f"{', '.join(needs_build[:5])}")
+    else:
+        missing = [p for p in REQUIRED_FILES if p not in files]
+        if missing:
+            raise InvalidSite(f"Generated site is not a Vite project, missing: {', '.join(missing)}")
+    _add_favicon(files, plain)
     return [{"path": p, "content": c} for p, c in files.items()]
 
 
 def extend_history(history: list[dict] | None, prompt: str, files: list[dict]) -> list[dict]:
     """History for the next request: previous turns plus this prompt and the site it produced."""
-    kept = [f for f in files if f["path"] != FAVICON_PATH]  # re-added on every generation
+    kept = [f for f in files if f["path"] not in (FAVICON_PATH, PLAIN_FAVICON_PATH)]  # re-added each time
     turn = [
         {"role": "user", "content": prompt},
         {"role": "assistant", "content": json.dumps({"files": kept})},
