@@ -7,6 +7,29 @@ import { Help, TokenHelp } from './Help'
 import { RenderPreview } from './RenderPreview'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
+const SITE_KEY = 'generate-site:last-site'
+
+// The last generated site (the conversation Claude needs to refine it, and where it is
+// stored) is kept in the browser so "Continue the previous site" survives a reload. It is
+// only given back to the user it belongs to, in the publish mode it was made in.
+function loadLastSite(email, target) {
+  try {
+    const site = JSON.parse(localStorage.getItem(SITE_KEY) ?? 'null')
+    const ok = site?.email === email && site.target === target && Array.isArray(site.conversation)
+    return ok && site.conversation.length ? site : null
+  } catch {
+    return null
+  }
+}
+
+function saveLastSite(site) {
+  try {
+    if (site?.conversation?.length) localStorage.setItem(SITE_KEY, JSON.stringify(site))
+    else localStorage.removeItem(SITE_KEY)
+  } catch {
+    // storage unavailable or full: the site can be continued until the page is reloaded
+  }
+}
 const MAX_HISTORY = 20
 const DEFAULT_REPO = 'SlavkoPar/AIGeneratedSite'
 const DEFAULT_TARGET = 'render' // where a site is published until the user chooses
@@ -44,6 +67,8 @@ function App() {
   const [result, setResult] = useState(null)
   const [conversation, setConversation] = useState([]) // sent back so Claude can refine the last site
   const [folder, setFolder] = useState('') // GitHub folder of that site, overwritten on refinement
+  // Checked: the next request changes the previous site. Unchecked: it starts a new one.
+  const [continueSite, setContinueSite] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [target, setTarget] = useState(DEFAULT_TARGET) // where the site is published: 'render' | 'github'
@@ -99,7 +124,12 @@ function App() {
     setProfile(data)
     if (applyRepo) {
       setRepo(data.github_repo || DEFAULT_REPO)
-      setTarget(data.publish_target || DEFAULT_TARGET)
+      const userTarget = data.publish_target || DEFAULT_TARGET
+      setTarget(userTarget)
+      const last = loadLastSite(data.email, userTarget)
+      setConversation(last?.conversation ?? [])
+      setFolder(last?.folder ?? '')
+      setContinueSite(true)
     }
     return data
   }, [signOut])
@@ -128,6 +158,7 @@ function App() {
     // refined in the other: the next request starts a new site.
     setConversation([])
     setFolder('')
+    saveLastSite(null)
     if (!session) return
     fetch(`${API_URL}/api/profile`, {
       method: 'PUT',
@@ -190,7 +221,7 @@ function App() {
       const res = await fetch(`${API_URL}/api/generate-site`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
-        body: JSON.stringify({ prompt, repo: repo.trim(), token: isDefaultRepo ? '' : token.trim(), history: conversation, folder, target }),
+        body: JSON.stringify({ prompt, repo: repo.trim(), token: isDefaultRepo ? '' : token.trim(), history: continueSite ? conversation : [], folder: continueSite ? folder : '', target }),
       })
       const text = await res.text()
       let data
@@ -206,6 +237,8 @@ function App() {
       setResult(data)
       setConversation(data.history ?? [])
       setFolder(data.folder ?? '')
+      setContinueSite(true)
+      saveLastSite({ email: session.user.email, target, conversation: data.history ?? [], folder: data.folder ?? '' })
     } catch (err) {
       // fetch rejects with a TypeError ("Failed to fetch") when the connection itself breaks
       setError(
@@ -351,7 +384,10 @@ function App() {
                 </a>
               )}
               {session && (
-                <button type="button" className="link-btn profile-signout" onClick={signOut}>Sign out</button>
+                <button type="button" className="link-btn profile-signout" onClick={() => {
+                  saveLastSite(null) // a deliberate sign-out leaves nothing of the user in this browser
+                  signOut()
+                }}>Sign out</button>
               )}
             </div>
           )}
@@ -392,12 +428,23 @@ function App() {
             ))}
           </select>
         )}
+        {conversation.length > 0 && (
+          <label className="continue">
+            <input type="checkbox" checked={continueSite} onChange={(e) => setContinueSite(e.target.checked)} />
+            Continue the previous site
+            <span className="continue-note">
+              {continueSite
+                ? 'Your request changes the site you generated last.'
+                : 'Your request starts a new site; the previous one is left as it is.'}
+            </span>
+          </label>
+        )}
         <textarea
           rows={4}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={
-            conversation.length
+            conversation.length && continueSite
               ? "Describe the change, e.g. 'make the header dark and add a contact form'"
               : "Describe the site, e.g.'a landing page for a coffee shop with a menu and opening hours'"
           }
