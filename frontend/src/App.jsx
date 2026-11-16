@@ -8,6 +8,7 @@ import { RenderPreview } from './RenderPreview'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
 const SITE_KEY = 'generate-site:last-site'
+const REPOS_KEY = 'generate-site:repos'
 
 // The last generated site (the conversation Claude needs to refine it, and where it is
 // stored) is kept in the browser so "Continue the previous site" survives a reload. It is
@@ -19,6 +20,34 @@ function loadLastSite(email, target) {
     return ok && site.conversation.length ? site : null
   } catch {
     return null
+  }
+}
+
+// Each user's GitHub repo is remembered in the browser, by email, so it is back when they
+// sign in again here even if the server has lost its copy. The token is never kept here.
+function loadRepos() {
+  try {
+    const repos = JSON.parse(localStorage.getItem(REPOS_KEY) ?? '{}')
+    return repos && typeof repos === 'object' && !Array.isArray(repos) ? repos : {}
+  } catch {
+    return {}
+  }
+}
+
+function loadUserRepo(email) {
+  const repo = loadRepos()[email]
+  return typeof repo === 'string' ? repo : ''
+}
+
+function saveUserRepo(email, repo) {
+  if (!email) return
+  try {
+    const repos = loadRepos()
+    if (repo && repo !== DEFAULT_REPO) repos[email] = repo
+    else delete repos[email]
+    localStorage.setItem(REPOS_KEY, JSON.stringify(repos))
+  } catch {
+    // storage unavailable or full: the repo is still saved on the server by Save
   }
 }
 
@@ -123,7 +152,11 @@ function App() {
     const data = await res.json()
     setProfile(data)
     if (applyRepo) {
-      setRepo(data.github_repo || DEFAULT_REPO)
+      // The browser's copy is the one the user typed last on this device; the server's
+      // copy covers a new browser.
+      const userRepo = loadUserRepo(data.email) || data.github_repo || DEFAULT_REPO
+      setRepo(userRepo)
+      saveUserRepo(data.email, userRepo)
       const userTarget = data.publish_target || DEFAULT_TARGET
       setTarget(userTarget)
       const last = loadLastSite(data.email, userTarget)
@@ -303,7 +336,10 @@ function App() {
                 <input
                   type="text"
                   value={repo}
-                  onChange={(e) => setRepo(e.target.value)}
+                  onChange={(e) => {
+                    setRepo(e.target.value)
+                    saveUserRepo(session?.user.email, e.target.value.trim())
+                  }}
                   placeholder="owner/repo"
                 />
               </label>
