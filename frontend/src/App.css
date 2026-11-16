@@ -246,6 +246,13 @@ form select, form button, .field input { font-size: 13px; }
 .admin a { color: var(--accent); }
 .admin-empty { margin: 0; padding: 0 12px 10px; opacity: .7; }
 
+/* the token help shown inside the settings menu */
+.help.settings-help { padding-top: 10px; border-top: 1px solid rgba(127,127,127,.3); font-size: 12px; }
+.help.settings-help h2 { margin: 0 0 6px; font-size: 14px; }
+.help.settings-help h3 { margin: 10px 0 4px; font-size: 13px; }
+.help.settings-help p, .help.settings-help ol { margin: 0 0 6px; }
+.help.settings-help ol { padding-left: 18px; }
+
 /* publish target */
 .target { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; margin: 0; padding: 6px 12px; border: 1px solid rgba(127,127,127,.3); border-radius: 8px; font-size: 13px; text-align: left; }
 .target legend { padding: 0 4px; font-size: 12px; opacity: .75; }

@@ -1,55 +1,65 @@
+// How to get a GitHub token: shown on the help page, and inside the settings menu when
+// publishing to Render.
+export function TokenHelp({ repo, isDefaultRepo }) {
+  return (
+    <>
+        <h2>How to get a GitHub token</h2>
+        <p>
+          The generator commits each site to a GitHub repo, adds a workflow that builds it, and turns
+          on GitHub Pages. The token decides whether it is allowed to do that.
+        </p>
+        {isDefaultRepo ? (
+          <p>
+            The current repo, <strong>{repo}</strong>, uses the server's token (GITHUB_TOKEN on
+            Render). To publish to your own repo, open the profile menu, change the repo and enter
+            your own token.
+          </p>
+        ) : (
+          <p>
+            The current repo is <strong>{repo}</strong>. Enter a token that can write to it in the
+            profile menu; it is used when you generate a site and is not stored.
+          </p>
+        )}
+
+        <h3>Prepare the repo</h3>
+        <p>
+          Ensure that you have a README.md file in the repo, and set{' '}
+          <a href={`https://github.com/${repo}/settings/pages`} target="_blank" rel="noreferrer">
+            Settings &gt; Pages
+          </a>{' '}
+          &gt; Source to: GitHub Actions.
+        </p>
+
+        <h3>Create or edit a token</h3>
+        <ol>
+          <li>
+            Open{' '}
+            <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
+              https://github.com/settings/personal-access-tokens
+            </a>
+            .
+          </li>
+          <li>
+            <strong>Fine-grained token:</strong> select the repo and, under Repository permissions,
+            set Contents, Workflows and Pages to Read and write. If Pages was never enabled on the
+            repo, also set Administration to Read and write.
+          </li>
+          <li>Copy the token and paste it into the profile menu at the top right.</li>
+        </ol>
+        <p>
+          Editing a fine-grained token's permissions keeps the same token value. If you create a new
+          token for the server, update GITHUB_TOKEN on Render and redeploy.
+        </p>
+    </>
+  )
+}
+
 // Help page (#/help): how to get a GitHub token the generator can publish with.
 export function Help({ repo, isDefaultRepo }) {
   return (
     <article className="help">
       <a className="help-back" href="#/">&larr; Back to the generator</a>
-      <h2>How to get a GitHub token</h2>
-      <p>
-        The generator commits each site to a GitHub repo, adds a workflow that builds it, and turns
-        on GitHub Pages. The token decides whether it is allowed to do that.
-      </p>
-      {isDefaultRepo ? (
-        <p>
-          The current repo, <strong>{repo}</strong>, uses the server's token (GITHUB_TOKEN on
-          Render). To publish to your own repo, open the profile menu, change the repo and enter
-          your own token.
-        </p>
-      ) : (
-        <p>
-          The current repo is <strong>{repo}</strong>. Enter a token that can write to it in the
-          profile menu; it is used when you generate a site and is not stored.
-        </p>
-      )}
-
-      <h3>Prepare the repo</h3>
-      <p>
-        Ensure that you have a README.md file in the repo, and set{' '}
-        <a href={`https://github.com/${repo}/settings/pages`} target="_blank" rel="noreferrer">
-          Settings &gt; Pages
-        </a>{' '}
-        &gt; Source to: GitHub Actions.
-      </p>
-
-      <h3>Create or edit a token</h3>
-      <ol>
-        <li>
-          Open{' '}
-          <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noreferrer">
-            https://github.com/settings/personal-access-tokens
-          </a>
-          .
-        </li>
-        <li>
-          <strong>Fine-grained token:</strong> select the repo and, under Repository permissions,
-          set Contents, Workflows and Pages to Read and write. If Pages was never enabled on the
-          repo, also set Administration to Read and write.
-        </li>
-        <li>Copy the token and paste it into the profile menu at the top right.</li>
-      </ol>
-      <p>
-        Editing a fine-grained token's permissions keeps the same token value. If you create a new
-        token for the server, update GITHUB_TOKEN on Render and redeploy.
-      </p>
+      <TokenHelp repo={repo} isDefaultRepo={isDefaultRepo} />
 
       <h3>If something fails</h3>
       <p>

@@ -3,7 +3,7 @@ import './App.css'
 import { API_URL, SignIn, loadSession, saveSession } from './Auth'
 import { DEFAULT_PROMPTS } from './defaultPrompts'
 import { Admin } from './Admin'
-import { Help } from './Help'
+import { Help, TokenHelp } from './Help'
 import { RenderPreview } from './RenderPreview'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
@@ -323,9 +323,15 @@ function App() {
                   {profile.generation_count} generation{profile.generation_count === 1 ? '' : 's'}
                 </p>
               )}
-              <a className="profile-link" href="#/help" onClick={() => setSettingsOpen(false)}>
-                How to get a GitHub token
-              </a>
+              {target === 'render' ? (
+                <div className="help settings-help">
+                  <TokenHelp repo={repo.trim()} isDefaultRepo={isDefaultRepo} />
+                </div>
+              ) : (
+                <a className="profile-link" href="#/help" onClick={() => setSettingsOpen(false)}>
+                  How to get a GitHub token
+                </a>
+              )}
               {session && (
                 <button type="button" className="link-btn profile-signout" onClick={signOut}>Sign out</button>
               )}
