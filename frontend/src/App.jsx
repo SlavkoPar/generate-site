@@ -9,15 +9,7 @@ import { RenderPreview } from './RenderPreview'
 const PROMPT_KEY = 'generate-site:prompt-history'
 const MAX_HISTORY = 20
 const DEFAULT_REPO = 'SlavkoPar/AIGeneratedSite'
-const TARGET_KEY = 'generate-site:target'
-
-function loadTarget() {
-  try {
-    return localStorage.getItem(TARGET_KEY) === 'render' ? 'render' : 'github'
-  } catch {
-    return 'github'
-  }
-}
+const DEFAULT_TARGET = 'render' // where a site is published until the user chooses
 
 // The built-in requests are only the starting list; once the user sends one, their own
 // requests are kept (newest first) and the built-ins age out like any other entry.
@@ -54,7 +46,7 @@ function App() {
   const [folder, setFolder] = useState('') // GitHub folder of that site, overwritten on refinement
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [target, setTarget] = useState(loadTarget) // where the site is published: 'github' | 'render'
+  const [target, setTarget] = useState(DEFAULT_TARGET) // where the site is published: 'render' | 'github'
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef(null)
   const [session, setSession] = useState(loadSession)
@@ -91,6 +83,7 @@ function App() {
     setToken('')
     // Nothing of this user may be left for the next one who signs in on this browser.
     setRepo(DEFAULT_REPO)
+    setTarget(DEFAULT_TARGET)
     setResult(null)
     setConversation([])
     setFolder('')
@@ -104,7 +97,10 @@ function App() {
     if (!res.ok) return undefined
     const data = await res.json()
     setProfile(data)
-    if (applyRepo) setRepo(data.github_repo || DEFAULT_REPO)
+    if (applyRepo) {
+      setRepo(data.github_repo || DEFAULT_REPO)
+      setTarget(data.publish_target || DEFAULT_TARGET)
+    }
     return data
   }, [signOut])
 
@@ -123,6 +119,27 @@ function App() {
   useEffect(() => {
     if (sessionToken) loadProfile(sessionToken, { applyRepo: true }).catch(() => {})
   }, [sessionToken, loadProfile])
+
+  // The choice is saved for the signed-in user as soon as it is made (no Save button needed).
+  function chooseTarget(value) {
+    if (value === target) return
+    setTarget(value)
+    // The two modes produce different kinds of project, so a site made in one cannot be
+    // refined in the other: the next request starts a new site.
+    setConversation([])
+    setFolder('')
+    if (!session) return
+    fetch(`${API_URL}/api/profile`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+      body: JSON.stringify({ publish_target: value }),
+    })
+      .then((res) => {
+        if (res.status === 401) signOut()
+        if (!res.ok) setProfileNote('Could not save the Publish to choice.')
+      })
+      .catch(() => setProfileNote('Could not save the Publish to choice.'))
+  }
 
   async function saveProfile(changes) {
     setProfileNote('')
@@ -272,8 +289,8 @@ function App() {
               <fieldset className="target">
                 <legend>Publish to</legend>
                 {[
-                  ['github', 'GitHub Pages'],
                   ['render', 'Render static site'],
+                  ['github', 'GitHub Pages'],
                 ].map(([value, label]) => (
                   <label key={value}>
                     <input
@@ -281,20 +298,7 @@ function App() {
                       name="target"
                       value={value}
                       checked={target === value}
-                      onChange={() => {
-                        setTarget(value)
-                  // The two modes produce different kinds of project, so a site made in one
-                  // cannot be refined in the other: the next request starts a new site.
-                  if (value !== target) {
-                    setConversation([])
-                    setFolder('')
-                  }
-                        try {
-                          localStorage.setItem(TARGET_KEY, value)
-                        } catch {
-                          // storage unavailable: the choice lasts until the page is reloaded
-                        }
-                      }}
+                      onChange={() => chooseTarget(value)}
                     />
                     {label}
                   </label>

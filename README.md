@@ -69,7 +69,8 @@ tab an administrator can reset a user's count, which lets them run 2 more.
 
 ## Where a generated site is published
 
-The form has a **Publish to** choice:
+The settings menu has a **Publish to** choice. It is saved per user, and a user who has not
+chosen gets **Render static site**:
 
 - **GitHub Pages** (default): the source is committed to the repo and a GitHub Actions
   workflow builds it and deploys it to Pages, as described below.

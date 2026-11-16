@@ -14,6 +14,7 @@ from sqlalchemy import (Column, DateTime, Float, ForeignKey, Integer, MetaData, 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 RECENT_GENERATIONS = 20
+PUBLISH_TARGETS = ("render", "github")  # the first one is the default
 
 
 def _database_path() -> Path:
@@ -40,6 +41,8 @@ users = Table(
     Column("last_login_at", DateTime(timezone=True), nullable=False),
     # Generations up to this id no longer count towards the user's limit (set by an admin reset).
     Column("limit_reset_id", Integer, nullable=False, default=0, server_default="0"),
+    # Where this user publishes: "render" or "github"; "" until they choose (the default applies).
+    Column("publish_target", String(20), nullable=False, default="", server_default=""),
 )
 
 generations = Table(
@@ -66,12 +69,18 @@ except SQLAlchemyError:
     metadata.create_all(engine)
 
 # create_all does not add columns to a table that already exists.
-if "limit_reset_id" not in {c["name"] for c in inspect(engine).get_columns("users")}:
-    try:
-        with engine.begin() as _conn:
-            _conn.execute(text("ALTER TABLE users ADD COLUMN limit_reset_id INTEGER NOT NULL DEFAULT 0"))
-    except SQLAlchemyError:
-        pass  # the other gunicorn worker added it first
+_ADDED_COLUMNS = {
+    "limit_reset_id": "INTEGER NOT NULL DEFAULT 0",
+    "publish_target": "VARCHAR(20) NOT NULL DEFAULT ''",
+}
+_existing = {c["name"] for c in inspect(engine).get_columns("users")}
+for _name, _definition in _ADDED_COLUMNS.items():
+    if _name not in _existing:
+        try:
+            with engine.begin() as _conn:
+                _conn.execute(text(f"ALTER TABLE users ADD COLUMN {_name} {_definition}"))
+        except SQLAlchemyError:
+            pass  # the other gunicorn worker added it first
 
 
 def _now() -> datetime:
@@ -105,9 +114,13 @@ def ensure_user(email: str, name: str = "", provider: str = "", login: bool = Fa
             pass  # a concurrent request created it first
 
 
-def save_github(email: str, repo: str | None = None, token: str | None = None) -> None:
-    """Update the stored repo and/or token. `None` leaves a field alone; "" clears it."""
+def save_github(email: str, repo: str | None = None, token: str | None = None,
+                publish_target: str | None = None) -> None:
+    """Update the stored repo, token and/or publish target. `None` leaves a field alone;
+    "" clears the repo or token."""
     values = {}
+    if publish_target is not None:
+        values["publish_target"] = publish_target
     if repo is not None:
         values["github_repo"] = repo
     if token is not None:
@@ -171,6 +184,7 @@ def _user(user, gens: list) -> dict:
         "provider": user.provider,
         "github_repo": user.github_repo,
         "has_github_token": bool(user.github_token_enc),
+        "publish_target": user.publish_target or PUBLISH_TARGETS[0],
         "created_at": user.created_at.isoformat(),
         "last_login_at": user.last_login_at.isoformat(),
         "total_cost_usd": round(sum(g.cost_usd for g in gens), 6),

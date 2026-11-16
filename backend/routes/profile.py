@@ -51,7 +51,7 @@ def admin_reset_generations():
 @api_bp.route("/profile", methods=["PUT"])
 @require_login
 def update_profile():
-    """Save the user's GitHub repo and/or token. A field that is left out is not changed;
+    """Save the user's GitHub repo, token and/or publish target. A field that is left out is not changed;
     an empty string clears it. The token is stored encrypted and never returned."""
     body = request.get_json(silent=True) or {}
     repo, token = body.get("github_repo"), body.get("github_token")
@@ -63,5 +63,8 @@ def update_profile():
         if not isinstance(token, str) or len(token) > 500:
             return jsonify(error="'github_token' is invalid"), 400
         token = token.strip()
-    db.save_github(g.user["email"], repo, token)
+    target = body.get("publish_target")
+    if target is not None and target not in db.PUBLISH_TARGETS:
+        return jsonify(error="'publish_target' must be 'render' or 'github'"), 400
+    db.save_github(g.user["email"], repo, token, target)
     return jsonify(_profile())

@@ -152,7 +152,7 @@ def generate_site_route():
         token = stored_token or None
     folder = (body.get("folder") or "").strip() or None
     # Where the site is published: GitHub Pages, or a Render static site built from the repo.
-    target = body.get("target") or "github"
+    target = body.get("target") or db.profile(g.user["email"])["publish_target"]
     if target not in ("github", "render"):
         return jsonify(error="'target' must be 'github' or 'render'"), 400
     if target == "render" and not render_store.is_configured():
