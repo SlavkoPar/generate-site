@@ -32,6 +32,15 @@ function loadHistory() {
   return DEFAULT_PROMPTS
 }
 
+// The built-in requests build on each other, so they are numbered in the order to run them
+// ("1) …", "2) …"), wherever they sit in the list. The user's own requests have no number.
+function optionLabel(prompt) {
+  const step = DEFAULT_PROMPTS.indexOf(prompt)
+  const text = prompt.replace(/\s+/g, ' ')
+  const short = text.length > 80 ? `${text.slice(0, 80)}…` : text
+  return step === -1 ? short : `${step + 1}) ${short}`
+}
+
 const PAGES = { '#/help': 'help', '#/users': 'users' }
 const pageFromHash = () => PAGES[window.location.hash] ?? 'home'
 
@@ -370,7 +379,7 @@ function App() {
           >
             <option value="">Load a previous request…</option>
             {history.map((p, i) => (
-              <option key={i} value={i}>{p.length > 80 ? `${p.slice(0, 80)}…` : p}</option>
+              <option key={i} value={i}>{optionLabel(p)}</option>
             ))}
           </select>
         )}
