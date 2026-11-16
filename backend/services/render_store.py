@@ -9,6 +9,7 @@ Settings: RENDER_API_KEY, and optionally RENDER_OWNER_ID (the workspace; the key
 workspace is used when it is not set).
 """
 import os
+import re
 
 import requests
 
@@ -60,9 +61,31 @@ def service_name(folder: str) -> str:
 
 def _result(service: dict) -> dict:
     return {
+        "render_service_id": service.get("id", ""),
         "render_url": service.get("serviceDetails", {}).get("url", ""),
         "render_dashboard_url": service.get("dashboardUrl", ""),
     }
+
+
+_SERVICE_ID_RE = re.compile(r"^srv-[a-z0-9]+$")
+_FAILED = {"build_failed": "the build failed", "update_failed": "the deploy failed",
+           "pre_deploy_failed": "the deploy failed", "canceled": "the deploy was canceled",
+           "deactivated": "the deploy was replaced by a newer one"}
+
+
+def deploy_state(service_id: str) -> dict:
+    """Where the service's latest deploy stands: {"state": "building" | "live" | "failed"},
+    with a "detail" when it failed."""
+    if not _SERVICE_ID_RE.match(service_id):
+        raise RenderStoreError("Invalid Render service id")
+    deploys = _check(_call("GET", f"/services/{service_id}/deploys", params={"limit": 1}),
+                     "reading the deploy")
+    status = deploys[0]["deploy"]["status"] if deploys else "created"
+    if status == "live":
+        return {"state": "live"}
+    if status in _FAILED:
+        return {"state": "failed", "detail": _FAILED[status]}
+    return {"state": "building"}
 
 
 def publish(repo_full: str, branch: str, folder: str) -> dict:

@@ -4,6 +4,7 @@ import { API_URL, SignIn, loadSession, saveSession } from './Auth'
 import { DEFAULT_PROMPTS } from './defaultPrompts'
 import { Admin } from './Admin'
 import { Help } from './Help'
+import { RenderPreview } from './RenderPreview'
 
 const PROMPT_KEY = 'generate-site:prompt-history'
 const MAX_HISTORY = 20
@@ -256,6 +257,36 @@ function App() {
                   autoComplete="off"
                 />
               </label>
+              <fieldset className="target">
+                <legend>Publish to</legend>
+                {[
+                  ['github', 'GitHub Pages'],
+                  ['render', 'Render static site'],
+                ].map(([value, label]) => (
+                  <label key={value}>
+                    <input
+                      type="radio"
+                      name="target"
+                      value={value}
+                      checked={target === value}
+                      onChange={() => {
+                        setTarget(value)
+                        try {
+                          localStorage.setItem(TARGET_KEY, value)
+                        } catch {
+                          // storage unavailable: the choice lasts until the page is reloaded
+                        }
+                      }}
+                    />
+                    {label}
+                  </label>
+                ))}
+                <span className="target-note">
+                  {target === 'render'
+                    ? 'The source is saved to the GitHub repo and Render builds the site from it.'
+                    : 'The source is saved to the GitHub repo and GitHub Actions deploys it to Pages.'}
+                </span>
+              </fieldset>
               {session && (
                 <div className="profile-actions">
                   <button
@@ -338,36 +369,6 @@ function App() {
               : "Describe the site, e.g.'a landing page for a coffee shop with a menu and opening hours'"
           }
         />
-        <fieldset className="target">
-          <legend>Publish to</legend>
-          {[
-            ['github', 'GitHub Pages'],
-            ['render', 'Render static site'],
-          ].map(([value, label]) => (
-            <label key={value}>
-              <input
-                type="radio"
-                name="target"
-                value={value}
-                checked={target === value}
-                onChange={() => {
-                  setTarget(value)
-                  try {
-                    localStorage.setItem(TARGET_KEY, value)
-                  } catch {
-                    // storage unavailable: the choice lasts until the page is reloaded
-                  }
-                }}
-              />
-              {label}
-            </label>
-          ))}
-          <span className="target-note">
-            {target === 'render'
-              ? 'The source is saved to the GitHub repo and Render builds the site from it.'
-              : 'The source is saved to the GitHub repo and GitHub Actions deploys it to Pages.'}
-          </span>
-        </fieldset>
         <button type="submit" disabled={loading || !session || !prompt.trim() || generationsLeft === 0}>
           {loading ? 'Generating…' : session ? 'Generate' : 'Sign in to generate'}
         </button>
@@ -414,6 +415,15 @@ function App() {
             </>
           )}
         </p>
+      )}
+      {result?.render_url && result.render_service_id && (
+        // keyed by the response so a refinement of the same site waits for its new build
+        <RenderPreview
+          key={result.history?.length}
+          url={result.render_url}
+          serviceId={result.render_service_id}
+          sessionToken={session?.token}
+        />
       )}
       {result?.actions_url && (
         <p>

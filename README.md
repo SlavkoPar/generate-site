@@ -76,7 +76,7 @@ The form has a **Publish to** choice:
 - **Render static site**: the source is committed to the same repo (Render cannot take
   source any other way; a static site is always built from a Git repository), then the
   Render API creates a static site that builds that folder (`npm install && npm run build`,
-  publishing `dist`). Each new site is a new Render service; refining a site redeploys its
+  publishing `dist`). When the build finishes the page shows a preview of the site. Each new site is a new Render service; refining a site redeploys its
   service. Needs `RENDER_API_KEY` (Render dashboard > Account Settings > API Keys), and
   optionally `RENDER_OWNER_ID` to pick the workspace. Render must be able to read the repo:
   it is public, or the Render account's GitHub connection has access to it.

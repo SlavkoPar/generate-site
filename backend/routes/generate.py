@@ -116,6 +116,18 @@ def generate():
     return _handle(run)
 
 
+@api_bp.route("/render-status/<service_id>", methods=["GET"])
+@require_login
+def render_status(service_id):
+    """Whether a Render static site has finished building, so the page can show its preview."""
+    if not render_store.is_configured():
+        return jsonify(error="Render is not configured on the server (RENDER_API_KEY)"), 500
+    try:
+        return jsonify(render_store.deploy_state(service_id))
+    except (render_store.RenderStoreError, requests.RequestException) as e:
+        return jsonify(error=str(e)), 502
+
+
 @api_bp.route("/generate-site", methods=["POST"])
 @require_login
 def generate_site_route():
