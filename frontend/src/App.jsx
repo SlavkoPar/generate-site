@@ -207,7 +207,12 @@ function App() {
       setConversation(data.history ?? [])
       setFolder(data.folder ?? '')
     } catch (err) {
-      setError(err.message)
+      // fetch rejects with a TypeError ("Failed to fetch") when the connection itself breaks
+      setError(
+        err instanceof TypeError
+          ? 'Lost the connection to the server before it answered (it may have restarted). Try again.'
+          : err.message,
+      )
     } finally {
       setLoading(false)
       loadProfile(session.token).catch(() => {}) // refresh the running cost total

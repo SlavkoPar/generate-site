@@ -63,9 +63,9 @@ Addresses listed in `ADMIN_EMAILS` (comma-separated) get an extra **Users** tab 
 registered users and their generations. It only appears when the administrator signs in
 with Google, because the email-only sign-in does not prove who is typing the address.
 
-Every other user may run 2 generations (`GENERATION_LIMIT` in `backend/services/auth.py`);
+Every other user may run 3 generations (`GENERATION_LIMIT` in `backend/services/auth.py`);
 administrators have no limit. Only generations that reached Claude are counted. In the Users
-tab an administrator can reset a user's count, which lets them run 2 more.
+tab an administrator can reset a user's count, which lets them run 3 more.
 
 ## Where a generated site is published
 

@@ -91,7 +91,7 @@ def is_admin(user: dict | None) -> bool:
     return bool(user) and user.get("provider") == "google" and user.get("email") in admins
 
 
-GENERATION_LIMIT = 2  # generations a user may run; administrators have no limit
+GENERATION_LIMIT = 3  # generations a user may run; administrators have no limit
 
 
 def generations_left(user: dict) -> int | None:
