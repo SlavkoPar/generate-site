@@ -29,9 +29,12 @@ Do not return dotfiles (such as .gitignore), a lockfile, node_modules, dist, or 
 files; use inline SVG or CSS for graphics. Do not load external scripts or tracking.
 
 Make the site responsive, accessible and polished. Return every file with its path relative \
-to the project root and its full content, with no markdown fences. If the conversation \
-already contains a site, apply the user's new request to it, keep everything they did not \
-ask to change, and return the complete updated set of files."""
+to the project root and its full content, with no markdown fences. Leave `deleted` empty.
+
+If the conversation already contains a site, apply the user's new request to it and keep \
+everything they did not ask to change. Then return only the files you created or changed, \
+each with its full content, and list in `deleted` the paths of files to remove. Do not \
+return a file whose content is unchanged: every file you leave out is kept exactly as it is."""
 
 # Render mode: plain source that is served exactly as returned, with no build step.
 PLAIN_SYSTEM_PROMPT = """\
@@ -52,9 +55,12 @@ Do not return dotfiles, or binary files; use inline SVG or CSS for graphics. Do 
 external scripts or tracking.
 
 Make the site responsive, accessible and polished. Return every file with its path relative \
-to the site root and its full content, with no markdown fences. If the conversation already \
-contains a site, apply the user's new request to it, keep everything they did not ask to \
-change, and return the complete updated set of files."""
+to the site root and its full content, with no markdown fences. Leave `deleted` empty.
+
+If the conversation already contains a site, apply the user's new request to it and keep \
+everything they did not ask to change. Then return only the files you created or changed, \
+each with its full content, and list in `deleted` the paths of files to remove. Do not \
+return a file whose content is unchanged: every file you leave out is kept exactly as it is."""
 
 OUTPUT_SCHEMA = {
     "type": "object",
@@ -70,9 +76,14 @@ OUTPUT_SCHEMA = {
                 "required": ["path", "content"],
                 "additionalProperties": False,
             },
-        }
+        },
+        "deleted": {
+            "type": "array",
+            "description": "Paths of files of the previous site to remove; empty for a new site.",
+            "items": {"type": "string"},
+        },
     },
-    "required": ["files"],
+    "required": ["files", "deleted"],
     "additionalProperties": False,
 }
 
@@ -82,7 +93,6 @@ REQUIRED_FILES = ("index.html", "package.json", "vite.config.ts")
 PLAIN_EXTENSIONS = {".html", ".css", ".js", ".json", ".svg", ".txt", ".md"}
 PLAIN_FAVICON_PATH = "favicon.svg"  # no build: the file sits next to index.html
 MAX_FILES = 80
-MAX_HISTORY_MESSAGES = 6  # last 3 request/response turns
 MAX_FILE_BYTES = 500_000
 
 
@@ -124,19 +134,39 @@ def _clean_path(path: str) -> str:
     return norm
 
 
+def _previous_files(history: list[dict] | None) -> dict[str, str]:
+    """The site the conversation already contains: the files in its last answer."""
+    if not history:
+        return {}
+    try:
+        previous = json.loads(history[-1]["content"])["files"]
+        return {_clean_path(f["path"]): f["content"] for f in previous
+                if isinstance(f["content"], str)}
+    except (ValueError, KeyError, TypeError, AttributeError) as e:  # it comes back from the client
+        raise InvalidSite("The previous site could not be read; untick \"Continue the previous "
+                          "site\" to start a new one.") from e
+
+
 def generate_site(prompt: str, history: list[dict] | None = None, plain: bool = False) -> list[dict]:
     """Return a validated list of {"path", "content"} files making up a Vite project, or with
-    `plain` a site of plain HTML, CSS and JavaScript that needs no build."""
+    `plain` a site of plain HTML, CSS and JavaScript that needs no build.
+
+    With `history` the model returns only what it changed, which is merged into the previous
+    site here, so the answer stays short however large the site has grown."""
+    files = _previous_files(history)
+    for path in (PLAIN_FAVICON_PATH, FAVICON_PATH):  # ours, re-added below
+        files.pop(path, None)
     data = ask_json(PLAIN_SYSTEM_PROMPT if plain else SYSTEM_PROMPT, prompt, OUTPUT_SCHEMA, history)
-    if len(data["files"]) > MAX_FILES:
-        # Dropping files would leave imports dangling and break the build.
-        raise InvalidSite(f"Generated site has more than {MAX_FILES} files; try a narrower request")
-    files: dict[str, str] = {}
+    for path in data.get("deleted", []):
+        files.pop(posixpath.normpath(path.replace("\\", "/").strip()), None)
     for f in data["files"]:
         path = _clean_path(f["path"])
         if len(f["content"].encode("utf-8")) > MAX_FILE_BYTES:
             raise InvalidSite(f"{path} is too large")
         files[path] = f["content"]
+    if len(files) > MAX_FILES:
+        # Dropping files would leave imports dangling and break the build.
+        raise InvalidSite(f"Generated site has more than {MAX_FILES} files; try a narrower request")
     if plain:
         if "index.html" not in files:
             raise InvalidSite("Generated site has no index.html")
@@ -153,10 +183,13 @@ def generate_site(prompt: str, history: list[dict] | None = None, plain: bool = 
 
 
 def extend_history(history: list[dict] | None, prompt: str, files: list[dict]) -> list[dict]:
-    """History for the next request: previous turns plus this prompt and the site it produced."""
+    """History for the next request: every request so far, and the site as it is now.
+
+    Only one copy of the site is kept. Resending each earlier version as well would multiply
+    the input cost of every refinement without telling the model anything it needs."""
     kept = [f for f in files if f["path"] not in (FAVICON_PATH, PLAIN_FAVICON_PATH)]  # re-added each time
-    turn = [
-        {"role": "user", "content": prompt},
-        {"role": "assistant", "content": json.dumps({"files": kept})},
+    requests = [m["content"] for m in (history or []) if m["role"] == "user"]
+    return [
+        {"role": "user", "content": "\n\n".join([*requests, prompt])},
+        {"role": "assistant", "content": json.dumps({"files": kept, "deleted": []})},
     ]
-    return [*(history or []), *turn][-MAX_HISTORY_MESSAGES:]

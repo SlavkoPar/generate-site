@@ -253,6 +253,11 @@ form select, form button, .field input { font-size: 13px; }
 .help.settings-help p, .help.settings-help ol { margin: 0 0 6px; }
 .help.settings-help ol { padding-left: 18px; }
 
+/* spinner shown in the button while a site is being generated */
+.spinner { display: inline-block; width: 1em; height: 1em; margin-right: 8px; vertical-align: -0.15em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
 /* continue the previous site */
 .continue { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; text-align: left; cursor: pointer; }
 .continue-note { font-size: 12px; opacity: .7; }

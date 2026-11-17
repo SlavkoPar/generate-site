@@ -486,7 +486,7 @@ function App() {
           }
         />
         <button type="submit" disabled={loading || !session || !prompt.trim() || generationsLeft === 0}>
-          {loading ? 'Generating…' : session ? 'Generate' : 'Sign in to generate'}
+          {loading ? <><span className="spinner" aria-hidden="true" />Generating…</> : session ? 'Generate' : 'Sign in to generate'}
         </button>
         {generationsLeft !== null && (
           <p className="usage">
