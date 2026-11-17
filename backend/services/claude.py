@@ -96,4 +96,7 @@ def ask_json(system: str, prompt: str, schema: dict, history: list[dict] | None 
                            "or untick \"Continue the previous site\" to start a smaller one.")
 
     text = next(b.text for b in response.content if b.type == "text")
+    # Thinking is billed as output too; this shows in the server log how the output splits.
+    print(f"claude usage: {response.usage.input_tokens} input, {response.usage.output_tokens} output, "
+          f"answer {len(text)} chars (about {len(text) // 3} tokens)", flush=True)
     return json.loads(text)

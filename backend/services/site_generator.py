@@ -50,6 +50,14 @@ files that the pages load with relative URLs (for example `css/style.css`, `js/m
 no npm packages, no package.json, and no bundler or other tooling.
 - Use relative URLs for every link and asset, so the site works from any folder. For several \
 pages, use separate .html files linked to each other.
+- Write what several pages share (header, navigation, footer) once, in a script such as \
+`js/layout.js` that inserts it into every page and marks the current page's link. A page \
+file then holds only its own content, and a change to the navigation touches one file. Do \
+not use fetch for this, so the site also works when opened from disk.
+- When several pages differ only in their data (one per product, article, person), keep the \
+data in one .js file and render them from a single page chosen by a URL parameter, such as \
+`item.html?id=apple`, unless the request asks for a separate file per item.
+- For a site that already exists in the conversation, keep the structure it has.
 
 Do not return dotfiles, or binary files; use inline SVG or CSS for graphics. Do not load \
 external scripts or tracking.
