@@ -3,7 +3,7 @@ import json
 
 import anthropic
 
-MODEL = "claude-fable-5-2"
+MODEL = "claude-sonnet-5-5"
 # The model's ceiling. Thinking is always on and is counted against it too, so a lower cap
 # can cut a large site off even though the files themselves would have fitted.
 MAX_OUTPUT_TOKENS = 128000
@@ -17,7 +17,7 @@ PRICES = {
     "claude-fable-5-2": (8.00, 40.00, 0.20),
     "claude-opus-5-5": (4.00, 20.00, 0.20),
     "claude-opus-5": (5.00, 25.00, 0.50),
-    "claude-sonnet-5-5": (2.00, 10.00, 0.20),
+    "claude-sonnet-5-5": (2.00, 10.00, 0.10),
     "claude-sonnet-5": (2.00, 10.00, 0.20),
     "claude-haiku-5-5": (0.10, 0.50, 0.01),
     "claude-fable-5-1": (10.00, 50.00, 1.00),
