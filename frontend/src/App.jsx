@@ -301,6 +301,11 @@ function App() {
               Browse site <a className="site-link" href={pagesUrl} target="_blank" rel="noreferrer">{pagesUrl}</a>
             </>
           )}
+          <br />
+          If you don't want to create your <code>github repo</code>, visit generated site at:{' '}
+          <a className="site-link" href="https://slavkopar.github.io/AIGeneratedSite" target="_blank" rel="noreferrer">
+            https://slavkopar.github.io/AIGeneratedSite
+          </a>
         </h1>
         <div className="settings" ref={settingsRef}>
           <button
